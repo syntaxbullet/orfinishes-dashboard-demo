@@ -115,7 +115,7 @@ export async function fetchCosmetics(
 ): Promise<CosmeticRecord[]> {
   let query = supabase
     .from("cosmetics")
-    .select<CosmeticRecord>("*")
+    .select("*")
     .order("name", { ascending: true });
 
   if (options.search) {
@@ -132,7 +132,7 @@ export async function fetchCosmetics(
     query = query.limit(options.limit);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.returns<CosmeticRecord[]>();
 
   if (error) {
     raise(error);
@@ -144,8 +144,9 @@ export async function fetchCosmetics(
 export async function fetchCosmeticById(id: string): Promise<CosmeticRecord> {
   const response = await supabase
     .from("cosmetics")
-    .select<CosmeticRecord>("*")
+    .select("*")
     .eq("id", id)
+    .returns<CosmeticRecord>()
     .single();
 
   return unwrap(response);
@@ -159,7 +160,7 @@ export async function fetchItems(
 ): Promise<ItemRecord[]> {
   let query = supabase
     .from("items")
-    .select<ItemRecord>("*")
+    .select("*")
     .order("created_at", { ascending: false });
 
   if (options.cosmeticId) {
@@ -176,7 +177,7 @@ export async function fetchItems(
     query = query.limit(options.limit);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.returns<ItemRecord[]>();
 
   if (error) {
     raise(error);
@@ -191,7 +192,7 @@ export async function fetchOwnershipEventsForItem(
 ): Promise<OwnershipEventRecord[]> {
   let query = supabase
     .from("ownership_events")
-    .select<OwnershipEventRecord>("*")
+    .select("*")
     .eq("item_id", itemId)
     .order("occurred_at", { ascending: false });
 
@@ -199,7 +200,7 @@ export async function fetchOwnershipEventsForItem(
     query = query.limit(options.limit);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.returns<OwnershipEventRecord[]>();
 
   if (error) {
     raise(error);
@@ -222,7 +223,8 @@ export async function createOwnershipEvent(
   const response = await supabase
     .from("ownership_events")
     .insert(normalized)
-    .select<OwnershipEventRecord>("*")
+    .select("*")
+    .returns<OwnershipEventRecord>()
     .single();
 
   return unwrap(response);
@@ -236,7 +238,7 @@ export async function fetchPlayers(
 ): Promise<PlayerRecord[]> {
   let query = supabase
     .from("players")
-    .select<PlayerRecord>("*")
+    .select("*")
     .order("display_name", { ascending: true, nullsFirst: false });
 
   if (options.search) {
@@ -254,7 +256,7 @@ export async function fetchPlayers(
     query = query.limit(options.limit);
   }
 
-  const { data, error } = await query;
+  const { data, error } = await query.returns<PlayerRecord[]>();
 
   if (error) {
     raise(error);
@@ -266,9 +268,23 @@ export async function fetchPlayers(
 export async function fetchItemOwnershipSnapshots(): Promise<
   ItemOwnershipSnapshot[]
 > {
-  const response = await supabase.rpc<ItemOwnershipSnapshot[]>(
-    "fetch_item_ownership_snapshots",
-  );
+  const { data, error } = await supabase
+    .rpc("fetch_item_ownership_snapshots")
+    .returns<ItemOwnershipSnapshot[]>();
 
-  return unwrap(response);
+  if (error) {
+    raise(error);
+  }
+
+  if (!data) {
+    return [];
+  }
+
+  if (!Array.isArray(data)) {
+    throw new Error(
+      "Supabase returned an unexpected payload for fetch_item_ownership_snapshots.",
+    );
+  }
+
+  return data;
 }
