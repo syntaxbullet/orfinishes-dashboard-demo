@@ -23,7 +23,7 @@ export function RootLayout() {
   const heading = activeItem?.title ?? "Dashboard";
   const description =
     activeItem?.description ??
-    "Stay on top of performance and activity across your workspace.";
+    "Stay on top of cosmetics, ownership events, and player health.";
 
   return (
     <SidebarProvider>
@@ -46,9 +46,9 @@ export function RootLayout() {
                 variant="outline"
                 className="hidden sm:inline-flex"
               >
-                Invite Team
+                Mint Item
               </Button>
-              <Button size="sm">New Report</Button>
+              <Button size="sm">Log Event</Button>
               <ThemeToggle />
             </div>
           </header>

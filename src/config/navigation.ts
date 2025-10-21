@@ -1,11 +1,12 @@
 import type { LucideIcon } from "lucide-react";
 import {
-  BarChart3,
+  Activity,
+  Boxes,
   FileText,
   LayoutDashboard,
   LifeBuoy,
   Settings,
-  ShoppingCart,
+  Sparkles,
   Users,
 } from "lucide-react";
 
@@ -30,13 +31,48 @@ export const navigationGroups: AppNavGroup[] = [
         title: "Dashboard",
         href: "/",
         icon: LayoutDashboard,
-        description: "Key metrics, activity, and quick insights at a glance.",
+        description:
+          "Key counts for cosmetics, minted items, and ownership churn.",
       },
       {
-        title: "Analytics",
-        href: "/analytics",
-        icon: BarChart3,
-        description: "Drill into performance trends and attribution.",
+        title: "Cosmetics Catalog",
+        href: "/catalog",
+        icon: Sparkles,
+        description:
+          "Browse every cosmetic definition, finish availability, and sources.",
+      },
+    ],
+  },
+  {
+    label: "Records",
+    items: [
+      {
+        title: "Minted Items",
+        href: "/items",
+        icon: Boxes,
+        description:
+          "Audit minted instances, finish types, and current ownership.",
+      },
+      {
+        title: "Ownership Events",
+        href: "/events",
+        icon: Activity,
+        description:
+          "Trace grants, transfers, and unboxing history for each item.",
+      },
+      {
+        title: "Players",
+        href: "/players",
+        icon: Users,
+        description:
+          "Manage player profiles, minting stats, and ban indicators.",
+      },
+      {
+        title: "Reports",
+        href: "/reports",
+        icon: FileText,
+        description:
+          "Generate exports for catalog syncs, audits, and retention reviews.",
       },
     ],
   },
@@ -44,40 +80,18 @@ export const navigationGroups: AppNavGroup[] = [
     label: "Operations",
     items: [
       {
-        title: "Customers",
-        href: "/customers",
-        icon: Users,
-        description: "Track customer health, engagement, and retention.",
-      },
-      {
-        title: "Sales",
-        href: "/sales",
-        icon: ShoppingCart,
-        description: "Monitor pipeline velocity and conversion performance.",
-      },
-      {
-        title: "Reports",
-        href: "/reports",
-        icon: FileText,
-        badge: "4",
-        description: "Curated exports and compliance-ready reporting.",
-      },
-    ],
-  },
-  {
-    label: "Help & Settings",
-    items: [
-      {
         title: "Settings",
         href: "/settings",
         icon: Settings,
-        description: "Manage workspace preferences, billing, and access.",
+        description:
+          "Configure retention limits, minting guards, and access rules.",
       },
       {
-        title: "Support",
-        href: "/support",
+        title: "Operations Runbook",
+        href: "/runbook",
         icon: LifeBuoy,
-        description: "Reach our team and review service updates.",
+        description:
+          "Document procedures for incidents, migrations, and data repairs.",
       },
     ],
   },

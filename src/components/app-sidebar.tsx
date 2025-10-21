@@ -40,12 +40,12 @@ export function AppSidebar() {
               Orfinishes
             </span>
             <span className="text-xs text-muted-foreground">
-              Intelligence Platform
+              Finish Control Center
             </span>
           </div>
         </div>
         <SidebarInput
-          placeholder="Search"
+          placeholder="Search catalog or players"
           aria-label="Search navigation"
           className="bg-background"
         />
@@ -85,14 +85,14 @@ export function AppSidebar() {
             <SidebarMenuButton asChild tooltip="View profile">
               <NavLink to="/settings">
                 <span className="flex size-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold uppercase">
-                  SB
+                  RN
                 </span>
                 <span className="grid flex-1 gap-0.5">
                   <span className="truncate text-sm font-medium">
-                    Sierra Brooks
+                    Riley Noor
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
-                    Operations Lead
+                    Catalog Steward
                   </span>
                 </span>
               </NavLink>

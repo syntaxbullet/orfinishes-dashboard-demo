@@ -1,24 +1,24 @@
 const metrics = [
-  { label: "Monthly revenue", value: "$128,400", delta: "+12.4%" },
-  { label: "Active customers", value: "1,248", delta: "+3.7%" },
-  { label: "Avg. response time", value: "2m 12s", delta: "-22%" },
-  { label: "Renewal rate", value: "94.6%", delta: "+1.1%" },
+  { label: "Catalog cosmetics", value: "312", delta: "+4 added this week" },
+  { label: "Minted items", value: "6,842", delta: "+196 past 7 days" },
+  { label: "Active players", value: "487", delta: "+23 month-over-month" },
+  { label: "Transfers pending QA", value: "18", delta: "12 require review" },
 ];
 
 const activities = [
   {
-    title: "Enterprise onboarding",
-    body: "Delta Industrial completed phase two of the rollout plan.",
-    timestamp: "2 hours ago",
+    title: "Mint window opened",
+    body: "Aurora Alloy finish minted for the 'Nebula Visor' cosmetic.",
+    timestamp: "27 minutes ago",
   },
   {
-    title: "Revenue alert",
-    body: "Net new ARR exceeded the weekly forecast by 8.5%.",
-    timestamp: "6 hours ago",
+    title: "Transfer flagged",
+    body: "Ownership dispute opened on item 4f62 after duplicate transfer.",
+    timestamp: "3 hours ago",
   },
   {
-    title: "Support pulse",
-    body: "CSAT climbed to 4.6 following the new escalation policy.",
+    title: "Catalog sync",
+    body: "Seasonal cosmetics imported from Supabase metadata snapshot.",
     timestamp: "Yesterday",
   },
 ];
@@ -31,8 +31,8 @@ export function DashboardPage() {
           Dashboard
         </h1>
         <p className="text-sm text-muted-foreground">
-          Monitor performance across revenue, customers, and service quality in
-          real time.
+          Monitor mint velocity, finish distribution, and ownership health at a
+          glance.
         </p>
       </header>
 
@@ -59,14 +59,15 @@ export function DashboardPage() {
         <div className="flex flex-col gap-6 rounded-lg border border-border bg-card p-6 shadow-sm">
           <div className="space-y-1">
             <h2 className="text-lg font-semibold leading-none">
-              Pipeline coverage
+              Finish coverage
             </h2>
             <p className="text-xs text-muted-foreground">
-              Week-over-week allocation across your active opportunities.
+              Compare target vs. actual finish percentages for high-priority
+              cosmetics.
             </p>
           </div>
           <div className="flex h-48 items-center justify-center rounded-md border border-dashed border-border text-sm text-muted-foreground">
-            Chart visualizations coming soon.
+            Finish distribution charts coming soon.
           </div>
         </div>
 
@@ -76,7 +77,8 @@ export function DashboardPage() {
               Latest activity
             </h2>
             <p className="text-xs text-muted-foreground">
-              A rolling feed of the most important workspace updates.
+              Rolling log of the most relevant mints, transfers, and catalog
+              changes.
             </p>
           </div>
           <div className="space-y-4">

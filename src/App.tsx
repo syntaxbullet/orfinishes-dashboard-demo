@@ -3,14 +3,15 @@ import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 import { ThemeProvider } from "./components/theme-provider";
-import { AnalyticsPage } from "./pages/analytics";
-import { CustomersPage } from "./pages/customers";
 import { RootLayout } from "./layouts/root-layout";
 import { DashboardPage } from "./pages/dashboard";
+import { CatalogPage } from "./pages/catalog";
+import { EventsPage } from "./pages/events";
+import { ItemsPage } from "./pages/items";
+import { PlayersPage } from "./pages/players";
+import { RunbookPage } from "./pages/runbook";
 import { ReportsPage } from "./pages/reports";
-import { SalesPage } from "./pages/sales";
 import { SettingsPage } from "./pages/settings";
-import { SupportPage } from "./pages/support";
 
 const router = createBrowserRouter([
   {
@@ -22,16 +23,20 @@ const router = createBrowserRouter([
         element: <DashboardPage />,
       },
       {
-        path: "analytics",
-        element: <AnalyticsPage />,
+        path: "catalog",
+        element: <CatalogPage />,
       },
       {
-        path: "customers",
-        element: <CustomersPage />,
+        path: "items",
+        element: <ItemsPage />,
       },
       {
-        path: "sales",
-        element: <SalesPage />,
+        path: "events",
+        element: <EventsPage />,
+      },
+      {
+        path: "players",
+        element: <PlayersPage />,
       },
       {
         path: "reports",
@@ -42,8 +47,8 @@ const router = createBrowserRouter([
         element: <SettingsPage />,
       },
       {
-        path: "support",
-        element: <SupportPage />,
+        path: "runbook",
+        element: <RunbookPage />,
       },
     ],
   },
