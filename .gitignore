@@ -1,5 +1,6 @@
 # dependencies (bun install)
 node_modules
+.bun-install
 
 # output
 out
@@ -25,6 +26,7 @@ report.[0-9]_.[0-9]_.[0-9]_.[0-9]_.json
 # caches
 .eslintcache
 .cache
+.bun-tmp
 *.tsbuildinfo
 
 # IntelliJ based IDEs
