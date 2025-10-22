@@ -403,11 +403,8 @@ export function PlayersPage() {
                           size="sm"
                           variant={showBanned ? "secondary" : "outline"}
                           onClick={() => {
-                            setShowBanned((previous) => {
-                              const next = !previous
-                              table.setPageIndex(0)
-                              return next
-                            })
+                            table.setPageIndex(0)
+                            setShowBanned((previous) => !previous)
                           }}
                         >
                           {showBanned ? "Banned included" : "Banned hidden"}
