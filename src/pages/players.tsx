@@ -2,6 +2,7 @@ import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
 
+import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
@@ -19,9 +20,82 @@ const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
   timeStyle: "short",
 })
 
+const AVATAR_IMAGE_SIZE = 72
+const AVATAR_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
+const AVATAR_SYNC_CONCURRENCY = 4
+
+function normalizeMinecraftUuid(uuid: string | null): string | null {
+  if (!uuid) {
+    return null
+  }
+
+  const normalized = uuid.replace(/[^a-fA-F0-9]/g, "").toLowerCase()
+  return normalized.length === 32 ? normalized : null
+}
+
+function buildPlayerAvatarUrl(player: PlayerRecord): string | null {
+  const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
+  if (!normalizedUuid) {
+    return null
+  }
+
+  const revisionSource =
+    player.avatar_synced_at ??
+    player.profile_synced_at ??
+    player.updated_at ??
+    player.created_at
+
+  let revisionParam: string | null = null
+
+  if (revisionSource) {
+    const timestamp = Date.parse(revisionSource)
+    if (!Number.isNaN(timestamp)) {
+      revisionParam = String(timestamp)
+    }
+  }
+
+  const searchParams = new URLSearchParams({
+    size: String(AVATAR_IMAGE_SIZE),
+  })
+
+  if (revisionParam) {
+    searchParams.set("rev", revisionParam)
+  }
+
+  return `/api/minecraft-profile/${normalizedUuid}/avatar?${searchParams.toString()}`
+}
+
+function shouldRefreshAvatar(player: PlayerRecord): boolean {
+  if (!player.avatar_storage_path || !player.avatar_synced_at) {
+    return true
+  }
+
+  const lastSynced = Date.parse(player.avatar_synced_at)
+  if (Number.isNaN(lastSynced)) {
+    return true
+  }
+
+  return Date.now() - lastSynced > AVATAR_CACHE_MAX_AGE_MS
+}
+
+function shouldRefreshProfile(player: PlayerRecord): boolean {
+  if (!player.profile_synced_at) {
+    return true
+  }
+
+  const lastSynced = Date.parse(player.profile_synced_at)
+  if (Number.isNaN(lastSynced)) {
+    return true
+  }
+
+  return Date.now() - lastSynced > AVATAR_CACHE_MAX_AGE_MS
+}
+
 type PlayerRow = {
+  record: PlayerRecord
   id: string
   displayName: string
+  avatarUrl: string | null
   minecraftUuid: string
   status: "Active" | "Banned"
   isBanned: boolean
@@ -35,122 +109,158 @@ type PlayerRow = {
   lastSyncedTimestamp: number
 }
 
-const playerColumns: ColumnDef<PlayerRow>[] = [
-  {
-    accessorKey: "displayName",
-    header: "Player",
-    cell: ({ row }) => (
-      <div className="space-y-1">
-        <p className="font-medium text-foreground">{row.original.displayName}</p>
-        <p className="font-mono text-xs text-muted-foreground">
-          {row.original.minecraftUuid}
-        </p>
-      </div>
-    ),
-    sortingFn: (a, b) =>
-      a.original.displayName.localeCompare(b.original.displayName),
-    filterFn: (row, _columnId, value) => {
-      const search = String(value ?? "").trim().toLowerCase()
-      if (!search) {
-        return true
-      }
+function createPlayerColumns(
+  onPlayerClick: (row: PlayerRow) => void,
+): ColumnDef<PlayerRow>[] {
+  return [
+    {
+      accessorKey: "displayName",
+      header: "Player",
+      cell: ({ row }) => {
+        const handleClick = () => onPlayerClick(row.original)
+        const initial =
+          row.original.displayName.trim().charAt(0).toUpperCase() || "?"
 
-      const displayName = row.original.displayName.toLowerCase()
-      const uuid = row.original.minecraftUuid.toLowerCase()
+        return (
+          <button
+            type="button"
+            onClick={handleClick}
+            className="flex w-full items-center gap-3 rounded-md border border-transparent p-1.5 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            aria-label={`Open profile for ${row.original.displayName}`}
+          >
+            {row.original.avatarUrl ? (
+              <img
+                src={row.original.avatarUrl}
+                alt={`${row.original.displayName} avatar`}
+                className="h-9 w-9 rounded border border-border object-cover"
+                loading="lazy"
+              />
+            ) : (
+              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 bg-muted text-xs font-medium uppercase text-muted-foreground">
+                {initial}
+              </div>
+            )}
+            <div className="space-y-1">
+              <p className="font-medium text-foreground">{row.original.displayName}</p>
+              <p className="font-mono text-xs text-muted-foreground">
+                {row.original.minecraftUuid}
+              </p>
+            </div>
+          </button>
+        )
+      },
+      sortingFn: (a, b) =>
+        a.original.displayName.localeCompare(b.original.displayName),
+      filterFn: (row, _columnId, value) => {
+        const search = String(value ?? "").trim().toLowerCase()
+        if (!search) {
+          return true
+        }
 
-      return displayName.includes(search) || uuid.includes(search)
+        const displayName = row.original.displayName.toLowerCase()
+        const uuid = row.original.minecraftUuid.toLowerCase()
+
+        return displayName.includes(search) || uuid.includes(search)
+      },
     },
-  },
-  {
-    accessorKey: "status",
-    header: "Status",
-    cell: ({ row }) => (
-      <span
-        className={cn(
-          "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
-          row.original.isBanned
-            ? "border-destructive/40 bg-destructive/10 text-destructive"
-            : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
-        )}
-      >
-        {row.original.status}
-      </span>
-    ),
-    sortingFn: (a, b) =>
-      Number(b.original.isBanned) - Number(a.original.isBanned),
-  },
-  {
-    accessorKey: "createdAt",
-    header: "Joined",
-    cell: ({ row }) => {
-      const date = new Date(row.original.createdAt)
-      if (Number.isNaN(date.getTime())) {
-        return <span className="text-sm text-muted-foreground">—</span>
-      }
-
-      return (
-        <span className="text-sm text-muted-foreground">
-          {dateFormatter.format(date)}
+    {
+      accessorKey: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <span
+          className={cn(
+            "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
+            row.original.isBanned
+              ? "border-destructive/40 bg-destructive/10 text-destructive"
+              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
+          )}
+        >
+          {row.original.status}
         </span>
-      )
+      ),
+      sortingFn: (a, b) =>
+        Number(b.original.isBanned) - Number(a.original.isBanned),
     },
-    sortingFn: (a, b) =>
-      a.original.createdTimestamp - b.original.createdTimestamp,
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Last updated",
-    cell: ({ row }) => {
-      const date = new Date(row.original.updatedAt)
-      if (Number.isNaN(date.getTime())) {
-        return <span className="text-sm text-muted-foreground">—</span>
-      }
+    {
+      accessorKey: "createdAt",
+      header: "Joined",
+      cell: ({ row }) => {
+        const date = new Date(row.original.createdAt)
+        if (Number.isNaN(date.getTime())) {
+          return <span className="text-sm text-muted-foreground">—</span>
+        }
 
-      return (
-        <span className="text-sm text-muted-foreground">
-          {dateTimeFormatter.format(date)}
-        </span>
-      )
+        return (
+          <span className="text-sm text-muted-foreground">
+            {dateFormatter.format(date)}
+          </span>
+        )
+      },
+      sortingFn: (a, b) =>
+        a.original.createdTimestamp - b.original.createdTimestamp,
     },
-    sortingFn: (a, b) =>
-      a.original.updatedTimestamp - b.original.updatedTimestamp,
-  },
-  {
-    accessorKey: "lastSyncedAt",
-    header: "Last synced",
-    cell: ({ row }) => {
-      const { lastSyncedAt } = row.original
-      if (!lastSyncedAt) {
-        return <span className="text-sm text-muted-foreground">Never</span>
-      }
+    {
+      accessorKey: "updatedAt",
+      header: "Last updated",
+      cell: ({ row }) => {
+        const date = new Date(row.original.updatedAt)
+        if (Number.isNaN(date.getTime())) {
+          return <span className="text-sm text-muted-foreground">—</span>
+        }
 
-      const date = new Date(lastSyncedAt)
-      if (Number.isNaN(date.getTime())) {
-        return <span className="text-sm text-muted-foreground">Never</span>
-      }
-
-      return (
-        <span className="text-sm text-muted-foreground">
-          {dateTimeFormatter.format(date)}
-        </span>
-      )
+        return (
+          <span className="text-sm text-muted-foreground">
+            {dateTimeFormatter.format(date)}
+          </span>
+        )
+      },
+      sortingFn: (a, b) =>
+        a.original.updatedTimestamp - b.original.updatedTimestamp,
     },
-    sortingFn: (a, b) =>
-      a.original.lastSyncedTimestamp - b.original.lastSyncedTimestamp,
-  },
-]
+    {
+      accessorKey: "lastSyncedAt",
+      header: "Last synced",
+      cell: ({ row }) => {
+        const { lastSyncedAt } = row.original
+        if (!lastSyncedAt) {
+          return <span className="text-sm text-muted-foreground">Never</span>
+        }
+
+        const date = new Date(lastSyncedAt)
+        if (Number.isNaN(date.getTime())) {
+          return <span className="text-sm text-muted-foreground">Never</span>
+        }
+
+        return (
+          <span className="text-sm text-muted-foreground">
+            {dateTimeFormatter.format(date)}
+          </span>
+        )
+      },
+      sortingFn: (a, b) =>
+        a.original.lastSyncedTimestamp - b.original.lastSyncedTimestamp,
+    },
+  ]
+}
 
 export function PlayersPage() {
   const [players, setPlayers] = React.useState<PlayerRecord[]>([])
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
   const [showBanned, setShowBanned] = React.useState(false)
+  const [isUpdatingPlayers, setisUpdatingPlayers] = React.useState(false)
+  const [selectedPlayerId, setSelectedPlayerId] = React.useState<string | null>(null)
+  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
-  const loadPlayers = React.useCallback(async () => {
+  const loadPlayers = React.useCallback(async (options?: { forceRefresh?: boolean }) => {
+    const forceRefresh = options?.forceRefresh ?? false
     setIsLoading(true)
     setError(null)
     try {
-      const data = await fetchPlayers({ includeBanned: true })
+      const data = await fetchPlayers({
+        includeBanned: true,
+        forceRefresh,
+      })
       setPlayers(data)
     } catch (err) {
       setError(
@@ -167,6 +277,132 @@ export function PlayersPage() {
     void loadPlayers()
   }, [loadPlayers])
 
+  const handlePlayerClick = React.useCallback(
+    (row: PlayerRow) => {
+      setSelectedPlayerId(row.id)
+      setIsProfileOpen(true)
+    },
+    [setIsProfileOpen, setSelectedPlayerId],
+  )
+
+  const handleProfileOpenChange = React.useCallback(
+    (nextOpen: boolean) => {
+      setIsProfileOpen(nextOpen)
+      if (!nextOpen) {
+        setSelectedPlayerId(null)
+      }
+    },
+    [setIsProfileOpen, setSelectedPlayerId],
+  )
+
+  const syncAvatars = React.useCallback(async () => {
+    if (!players.length || isUpdatingPlayers) {
+      return
+    }
+
+    setisUpdatingPlayers(true)
+
+    try {
+      const staleCandidates = players.filter(shouldRefreshAvatar)
+      const candidateList = staleCandidates.length ? staleCandidates : players
+      const forceFullRefresh = staleCandidates.length === 0
+      const seen = new Set<string>()
+      const targets = candidateList
+        .map((player) => ({
+          player,
+          normalizedUuid: normalizeMinecraftUuid(player.minecraft_uuid),
+        }))
+        .filter(
+          (
+            entry,
+          ): entry is {
+            player: PlayerRecord
+            normalizedUuid: string
+          } => {
+            if (!entry.normalizedUuid) {
+              return false
+            }
+
+            if (seen.has(entry.normalizedUuid)) {
+              return false
+            }
+
+            seen.add(entry.normalizedUuid)
+            return true
+          },
+        )
+
+      if (!targets.length) {
+        return
+      }
+
+      let didMutate = false
+      const chunkSize = Math.ceil(targets.length / AVATAR_SYNC_CONCURRENCY)
+      const workers: Array<Promise<void>> = []
+
+      for (let index = 0; index < targets.length; index += chunkSize) {
+        const chunk = targets.slice(index, index + chunkSize)
+        workers.push(
+          (async () => {
+            for (const { player, normalizedUuid } of chunk) {
+              if (forceFullRefresh || shouldRefreshProfile(player)) {
+                try {
+                  await fetch(`/api/minecraft-profile/${normalizedUuid}`, {
+                    method: "GET",
+                    cache: "no-store",
+                  })
+                  didMutate = true
+                } catch (profileError) {
+                  console.error("Failed to warm profile cache", {
+                    uuid: normalizedUuid,
+                    error: profileError,
+                  })
+                }
+              }
+
+              try {
+                const avatarResponse = await fetch(
+                  `/api/minecraft-profile/${normalizedUuid}/avatar?size=${AVATAR_IMAGE_SIZE}`,
+                  {
+                    method: "GET",
+                    cache: "no-store",
+                  },
+                )
+
+                if (avatarResponse.ok) {
+                  await avatarResponse.arrayBuffer().catch(() => null)
+                  didMutate = true
+                } else {
+                  await avatarResponse.json().catch(() => null)
+                }
+              } catch (avatarError) {
+                console.error("Failed to warm avatar cache", {
+                  uuid: normalizedUuid,
+                  error: avatarError,
+                })
+              }
+            }
+          })(),
+        )
+      }
+
+      await Promise.all(workers)
+
+      if (didMutate) {
+        // Give the edge function a brief moment to finish background uploads before reloading data.
+        await new Promise((resolve) => setTimeout(resolve, 750))
+        await loadPlayers({ forceRefresh: true })
+      }
+    } finally {
+      setisUpdatingPlayers(false)
+    }
+  }, [players, isUpdatingPlayers, loadPlayers])
+
+  const columns = React.useMemo(
+    () => createPlayerColumns(handlePlayerClick),
+    [handlePlayerClick],
+  )
+
   const tableData = React.useMemo<PlayerRow[]>(() => {
     return players.map((player) => {
       const displayName = player.display_name?.trim() || "Unknown handle"
@@ -180,8 +416,10 @@ export function PlayersPage() {
         : Number.NaN
 
       return {
+        record: player,
         id: player.id,
         displayName,
+        avatarUrl: buildPlayerAvatarUrl(player),
         minecraftUuid: player.minecraft_uuid,
         status: player.is_banned ? "Banned" : "Active",
         isBanned: Boolean(player.is_banned),
@@ -203,6 +441,13 @@ export function PlayersPage() {
     })
   }, [players])
 
+  const selectedPlayer = React.useMemo(
+    () => players.find((player) => player.id === selectedPlayerId) ?? null,
+    [players, selectedPlayerId],
+  )
+
+  const isProfileSheetOpen = Boolean(selectedPlayer) && isProfileOpen
+
   const visiblePlayers = React.useMemo(() => {
     if (showBanned) {
       return tableData
@@ -218,11 +463,6 @@ export function PlayersPage() {
           label: "Registered players",
           value: "0",
           detail: "No players found in Supabase.",
-        },
-        {
-          label: "Mint eligible",
-          value: "0",
-          detail: "Awaiting the first verified player.",
         },
         {
           label: "Latest profile sync",
@@ -241,7 +481,7 @@ export function PlayersPage() {
     const latestUpdated = tableData.reduce<PlayerRow>(
       (latest, current) =>
         current.updatedTimestamp > latest.updatedTimestamp ? current : latest,
-      tableData[0],
+      tableData[0]!,
     )
 
     const latestSynced = tableData.reduce<PlayerRow | null>(
@@ -284,15 +524,6 @@ export function PlayersPage() {
         )} · Banned ${numberFormatter.format(bannedPlayers)}`,
       },
       {
-        label: "Mint eligible",
-        value: numberFormatter.format(activePlayers),
-        detail: syncedPlayers
-          ? `${numberFormatter.format(
-              syncedPlayers,
-            )} profiles recently synced`
-          : "No profile syncs captured",
-      },
-      {
         label: "Latest profile sync",
         value: latestSyncedValue ?? latestUpdatedValue ?? "—",
         detail: latestSyncedValue
@@ -305,7 +536,8 @@ export function PlayersPage() {
   }, [tableData])
 
   return (
-    <section className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">
+    <>
+      <section className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight text-foreground">
           Players
@@ -316,7 +548,7 @@ export function PlayersPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {statCards.map((card) => (
           <div
             key={card.label}
@@ -370,7 +602,7 @@ export function PlayersPage() {
             </div>
           ) : (
             <DataTable
-              columns={playerColumns}
+              columns={columns}
               data={visiblePlayers}
               filterColumn="displayName"
               filterPlaceholder="Search players..."
@@ -393,38 +625,41 @@ export function PlayersPage() {
                         placeholder="Search players..."
                         className="w-full sm:max-w-xs"
                       />
-
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Moderation
-                        </span>
-                        <Button
-                          type="button"
-                          size="sm"
-                          variant={showBanned ? "secondary" : "outline"}
-                          onClick={() => {
-                            table.setPageIndex(0)
-                            setShowBanned((previous) => !previous)
-                          }}
-                        >
-                          {showBanned ? "Banned included" : "Banned hidden"}
-                        </Button>
-                      </div>
                     </div>
-
-                    {isFiltered ? (
+                    <div className="flex items-center gap-2 self-start lg:self-auto">
                       <Button
-                        variant="ghost"
+                        type="button"
                         size="sm"
+                        variant="secondary"
+                        disabled={isUpdatingPlayers || !players.length}
                         onClick={() => {
-                          table.resetColumnFilters()
-                          table.setPageIndex(0)
-                          setShowBanned(false)
+                          void syncAvatars()
                         }}
                       >
-                        Reset filters
+                        {isUpdatingPlayers ? (
+                          <>
+                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                            Updating player data
+                          </>
+                        ) : (
+                          "Update player data"
+                        )}
                       </Button>
-                    ) : null}
+
+                      {isFiltered ? (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            table.resetColumnFilters()
+                            table.setPageIndex(0)
+                            setShowBanned(false)
+                          }}
+                        >
+                          Reset filters
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
                 )
               }}
@@ -432,12 +667,14 @@ export function PlayersPage() {
           )}
         </div>
       </div>
-
-      <div className="rounded-lg border border-dashed border-border p-10 text-center text-sm text-muted-foreground">
-        Player drill-downs, item ownership, and moderation workflows will land
-        here after Supabase RPC integration.
-      </div>
     </section>
+    
+      <PlayerProfileSheet
+        player={selectedPlayer}
+        open={isProfileSheetOpen}
+        onOpenChange={handleProfileOpenChange}
+      />
+    </>
   )
 }
 
