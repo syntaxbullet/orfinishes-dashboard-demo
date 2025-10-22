@@ -13,7 +13,15 @@ import {
 } from "@tanstack/react-table"
 
 import { cn } from "@/lib/utils"
-import { Button } from "@/components/ui/button"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationEllipsis,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Input } from "@/components/ui/input"
 import {
   Table,
@@ -63,6 +71,57 @@ export function DataTable<TData, TValue>({
   })
 
   const filter = filterColumn ? table.getColumn(filterColumn) : null
+  const pageCount = table.getPageCount()
+  const pageIndex = table.getState().pagination.pageIndex
+  const paginationRange = React.useMemo<(number | "ellipsis")[]>(() => {
+    if (pageCount <= 1) {
+      return []
+    }
+
+    const siblingCount = 1
+    const totalPageNumbers = siblingCount * 2 + 3
+
+    if (pageCount <= totalPageNumbers) {
+      return Array.from({ length: pageCount }, (_, index) => index)
+    }
+
+    const leftSiblingIndex = Math.max(pageIndex - siblingCount, 1)
+    const rightSiblingIndex = Math.min(
+      pageIndex + siblingCount,
+      pageCount - 2
+    )
+
+    const showLeftEllipsis = leftSiblingIndex > 1
+    const showRightEllipsis = rightSiblingIndex < pageCount - 2
+
+    const range: (number | "ellipsis")[] = [0]
+
+    if (!showLeftEllipsis) {
+      for (let index = 1; index < leftSiblingIndex; index++) {
+        range.push(index)
+      }
+    } else {
+      range.push("ellipsis")
+    }
+
+    for (let index = leftSiblingIndex; index <= rightSiblingIndex; index++) {
+      range.push(index)
+    }
+
+    if (!showRightEllipsis) {
+      for (let index = rightSiblingIndex + 1; index < pageCount - 1; index++) {
+        range.push(index)
+      }
+    } else {
+      range.push("ellipsis")
+    }
+
+    range.push(pageCount - 1)
+
+    return range
+  }, [pageCount, pageIndex])
+  const canPrevious = table.getCanPreviousPage()
+  const canNext = table.getCanNextPage()
 
   return (
     <div className={cn("space-y-4", className)}>
@@ -155,24 +214,58 @@ export function DataTable<TData, TValue>({
           </span>{" "}
           cosmetics
         </p>
-        <div className="flex items-center gap-2 justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.previousPage()}
-            disabled={!table.getCanPreviousPage()}
-          >
-            Previous
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => table.nextPage()}
-            disabled={!table.getCanNextPage()}
-          >
-            Next
-          </Button>
-        </div>
+        <Pagination className="mx-0 justify-center sm:ml-auto sm:justify-end">
+          <PaginationContent>
+            <PaginationItem>
+              <PaginationPrevious
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (canPrevious) {
+                    table.previousPage()
+                  }
+                }}
+                className={cn(!canPrevious && "pointer-events-none opacity-50")}
+                aria-disabled={!canPrevious}
+                tabIndex={canPrevious ? undefined : -1}
+              />
+            </PaginationItem>
+            {paginationRange.map((item, index) =>
+              item === "ellipsis" ? (
+                <PaginationItem key={`ellipsis-${index}`}>
+                  <PaginationEllipsis />
+                </PaginationItem>
+              ) : (
+                <PaginationItem key={item}>
+                  <PaginationLink
+                    href="#"
+                    isActive={pageIndex === item}
+                    onClick={(event) => {
+                      event.preventDefault()
+                      table.setPageIndex(item)
+                    }}
+                  >
+                    {item + 1}
+                  </PaginationLink>
+                </PaginationItem>
+              )
+            )}
+            <PaginationItem>
+              <PaginationNext
+                href="#"
+                onClick={(event) => {
+                  event.preventDefault()
+                  if (canNext) {
+                    table.nextPage()
+                  }
+                }}
+                className={cn(!canNext && "pointer-events-none opacity-50")}
+                aria-disabled={!canNext}
+                tabIndex={canNext ? undefined : -1}
+              />
+            </PaginationItem>
+          </PaginationContent>
+        </Pagination>
       </div>
     </div>
   )
