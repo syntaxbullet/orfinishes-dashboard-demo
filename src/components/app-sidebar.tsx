@@ -85,14 +85,14 @@ export function AppSidebar() {
             <SidebarMenuButton asChild tooltip="View profile">
               <NavLink to="/settings">
                 <span className="flex size-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold uppercase">
-                  RN
+                  IJ
                 </span>
                 <span className="grid flex-1 gap-0.5">
                   <span className="truncate text-sm font-medium">
-                    Riley Noor
+                    Ivan Jovanovic
                   </span>
                   <span className="truncate text-xs text-muted-foreground">
-                    Catalog Steward
+                    Developer
                   </span>
                 </span>
               </NavLink>

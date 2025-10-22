@@ -4,18 +4,12 @@ import {
   type PostgrestSingleResponse,
 } from "@supabase/supabase-js";
 
-const requireEnv = (key: string) => {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(`Missing required Supabase environment variable: ${key}`);
-  }
-  return value;
-};
 
-const supabaseUrl = requireEnv("SUPABASE_URL");
-const supabaseKey = requireEnv("SUPABASE_PUBLISHABLE_DEFAULT_KEY");
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+const supabaseUrl = process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+
+export const supabase = createClient(supabaseUrl!, supabaseKey!);
 
 const raise = (error: PostgrestError): never => {
   const details = [error.message, error.details, error.hint]

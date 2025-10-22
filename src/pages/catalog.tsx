@@ -1,187 +1,34 @@
 import * as React from "react"
-import { ColumnDef } from "@tanstack/react-table"
+import type { ColumnDef } from "@tanstack/react-table"
+import { Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
+import { fetchCosmetics, type CosmeticRecord } from "@/utils/supabase"
 
-const catalogHighlights = [
-  {
-    label: "Total cosmetics",
-    value: "312",
-    detail: "Tracked across 9 collections",
-  },
-  {
-    label: "Finish variants",
-    value: "17",
-    detail: "Includes seasonal exclusives",
-  },
-  {
-    label: "Needs source review",
-    value: "5",
-    detail: "Missing supplier metadata",
-  },
-]
-
-const upcomingTasks = [
-  "Backfill exclusive_to_year for legacy drops (<= 2019).",
-  "Tag cosmetics missing rarity notes before the next sync.",
-  "Confirm trigger coverage for set_updated_at after manual edits.",
-]
-
-type CosmeticRow = {
-  id: string
-  name: string
-  category: string
-  source: string
-  exclusiveToYear: number | null
-  finishVariants: number
-  updatedAt: string
-}
-
-const cosmeticsCatalog: CosmeticRow[] = [
-  {
-    id: "nebula-visor",
-    name: "Nebula Visor",
-    category: "Headgear",
-    source: "Aurora Season Pass",
-    exclusiveToYear: 2025,
-    finishVariants: 6,
-    updatedAt: "2025-10-14T18:42:00Z",
-  },
-  {
-    id: "holo-shard-cape",
-    name: "Holo Shard Cape",
-    category: "Backwear",
-    source: "Radiant Cache",
-    exclusiveToYear: null,
-    finishVariants: 4,
-    updatedAt: "2025-10-13T12:15:00Z",
-  },
-  {
-    id: "prism-trail-boots",
-    name: "Prism Trail Boots",
-    category: "Footwear",
-    source: "Prism League Ladder",
-    exclusiveToYear: 2024,
-    finishVariants: 5,
-    updatedAt: "2025-10-12T08:20:00Z",
-  },
-  {
-    id: "celestine-pauldrons",
-    name: "Celestine Pauldrons",
-    category: "Armor",
-    source: "Vault of Echoes",
-    exclusiveToYear: null,
-    finishVariants: 3,
-    updatedAt: "2025-10-11T16:55:00Z",
-  },
-  {
-    id: "emberline-cloak",
-    name: "Emberline Cloak",
-    category: "Backwear",
-    source: "Emberline Story Bundle",
-    exclusiveToYear: null,
-    finishVariants: 2,
-    updatedAt: "2025-10-10T09:48:00Z",
-  },
-  {
-    id: "sunder-gauntlets",
-    name: "Sunder Gauntlets",
-    category: "Gloves",
-    source: "Warfront Spoils",
-    exclusiveToYear: null,
-    finishVariants: 5,
-    updatedAt: "2025-10-09T21:10:00Z",
-  },
-  {
-    id: "lumen-crown",
-    name: "Lumen Crown",
-    category: "Headgear",
-    source: "Festival of Lights",
-    exclusiveToYear: 2023,
-    finishVariants: 4,
-    updatedAt: "2025-10-08T14:33:00Z",
-  },
-  {
-    id: "tideglass-staff",
-    name: "Tideglass Staff",
-    category: "Weapon",
-    source: "Tidal Trials",
-    exclusiveToYear: null,
-    finishVariants: 3,
-    updatedAt: "2025-10-07T11:05:00Z",
-  },
-  {
-    id: "riftstep-greaves",
-    name: "Riftstep Greaves",
-    category: "Footwear",
-    source: "Rift Siege",
-    exclusiveToYear: null,
-    finishVariants: 3,
-    updatedAt: "2025-10-06T23:45:00Z",
-  },
-  {
-    id: "obsidian-mesh-hood",
-    name: "Obsidian Mesh Hood",
-    category: "Headgear",
-    source: "Shadow Market",
-    exclusiveToYear: null,
-    finishVariants: 2,
-    updatedAt: "2025-10-05T07:12:00Z",
-  },
-  {
-    id: "polaris-sash",
-    name: "Polaris Sash",
-    category: "Accessories",
-    source: "Polaris Expedition",
-    exclusiveToYear: 2022,
-    finishVariants: 3,
-    updatedAt: "2025-10-04T10:22:00Z",
-  },
-  {
-    id: "gloomveil-wraps",
-    name: "Gloomveil Wraps",
-    category: "Gloves",
-    source: "Gloom Bazaar",
-    exclusiveToYear: null,
-    finishVariants: 2,
-    updatedAt: "2025-10-03T19:18:00Z",
-  },
-  {
-    id: "starfall-mantle",
-    name: "Starfall Mantle",
-    category: "Backwear",
-    source: "Starfall Archive",
-    exclusiveToYear: null,
-    finishVariants: 4,
-    updatedAt: "2025-10-02T12:40:00Z",
-  },
-  {
-    id: "cascade-veil",
-    name: "Cascade Veil",
-    category: "Headgear",
-    source: "Riverborn Season",
-    exclusiveToYear: 2021,
-    finishVariants: 5,
-    updatedAt: "2025-09-30T18:25:00Z",
-  },
-  {
-    id: "mirage-treads",
-    name: "Mirage Treads",
-    category: "Footwear",
-    source: "Mirage Arena",
-    exclusiveToYear: null,
-    finishVariants: 3,
-    updatedAt: "2025-09-29T15:02:00Z",
-  },
-]
-
+const numberFormatter = new Intl.NumberFormat("en-US")
 const dateFormatter = new Intl.DateTimeFormat("en-US", {
   month: "short",
   day: "numeric",
   year: "numeric",
 })
+const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
+  dateStyle: "medium",
+  timeStyle: "short",
+})
+
+type CosmeticRow = {
+  id: string
+  name: string
+  category: string
+  source: string | null
+  exclusiveToYear: number | null
+  lastTouchedAt: string
+  lastTouchedTimestamp: number
+  createdAt: string
+  updatedAt: string | null
+}
 
 const catalogColumns: ColumnDef<CosmeticRow>[] = [
   {
@@ -198,20 +45,24 @@ const catalogColumns: ColumnDef<CosmeticRow>[] = [
     accessorKey: "source",
     header: "Source",
     cell: ({ row }) => (
-      <span className="text-sm text-foreground">{row.getValue("source")}</span>
+      <span className="text-sm text-foreground">
+        {row.original.source ?? "Unknown"}
+      </span>
     ),
   },
   {
     accessorKey: "exclusiveToYear",
-    header: "Exclusive To",
+    header: "Exclusive To Year",
     cell: ({ row }) => {
       const value = row.original.exclusiveToYear
-      return value ? (
+      if (!value) {
+        return <span className="text-sm text-muted-foreground">None</span>
+      }
+
+      return (
         <span className="inline-flex items-center rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-xs font-medium text-amber-600">
           {value}
         </span>
-      ) : (
-        <span className="text-sm text-muted-foreground">Shared pool</span>
       )
     },
     sortingFn: (a, b) => {
@@ -222,45 +73,197 @@ const catalogColumns: ColumnDef<CosmeticRow>[] = [
     },
   },
   {
-    accessorKey: "finishVariants",
-    header: "Finishes",
-    cell: ({ row }) => (
-      <span className="text-sm font-medium text-foreground">
-        {row.getValue("finishVariants")}
-      </span>
-    ),
-  },
-  {
-    accessorKey: "updatedAt",
-    header: "Last synced",
+    accessorKey: "lastTouchedAt",
+    header: "Last touched",
     cell: ({ row }) => (
       <span className="text-sm text-muted-foreground">
-        {dateFormatter.format(new Date(row.original.updatedAt))}
+        {dateFormatter.format(new Date(row.original.lastTouchedAt))}
       </span>
     ),
+    sortingFn: (a, b) =>
+      a.original.lastTouchedTimestamp - b.original.lastTouchedTimestamp,
   },
 ]
 
 export function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = React.useState("all")
+  const [cosmetics, setCosmetics] = React.useState<CosmeticRecord[]>([])
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [error, setError] = React.useState<string | null>(null)
 
-  const categoryOptions = React.useMemo(
-    () => [
-      "all",
-      ...Array.from(new Set(cosmeticsCatalog.map((item) => item.category))),
-    ],
-    []
-  )
+  const loadCosmetics = React.useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const data = await fetchCosmetics()
+      setCosmetics(data)
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load cosmetics from Supabase.",
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }, [])
+
+  React.useEffect(() => {
+    void loadCosmetics()
+  }, [loadCosmetics])
+
+  const tableData = React.useMemo<CosmeticRow[]>(() => {
+    return cosmetics.map((cosmetic) => {
+      const lastTouchedAt = cosmetic.updated_at ?? cosmetic.created_at
+      const parsedLastTouched = Date.parse(lastTouchedAt)
+      const createdAtTimestamp = Date.parse(cosmetic.created_at)
+
+      return {
+        id: cosmetic.id,
+        name: cosmetic.name,
+        category: cosmetic.type || "Uncategorized",
+        source: cosmetic.source,
+        exclusiveToYear: cosmetic.exclusive_to_year,
+        lastTouchedAt,
+        lastTouchedTimestamp: Number.isNaN(parsedLastTouched)
+          ? createdAtTimestamp
+          : parsedLastTouched,
+        createdAt: cosmetic.created_at,
+        updatedAt: cosmetic.updated_at,
+      }
+    })
+  }, [cosmetics])
+
+  const categoryOptions = React.useMemo(() => {
+    const categories = new Set<string>()
+    for (const item of tableData) {
+      categories.add(item.category)
+    }
+
+    return ["all", ...Array.from(categories).sort((a, b) => a.localeCompare(b))]
+  }, [tableData])
+
+  React.useEffect(() => {
+    if (categoryFilter !== "all" && !categoryOptions.includes(categoryFilter)) {
+      setCategoryFilter("all")
+    }
+  }, [categoryFilter, categoryOptions])
 
   const filteredCosmetics = React.useMemo(() => {
     if (categoryFilter === "all") {
-      return cosmeticsCatalog
+      return tableData
     }
 
-    return cosmeticsCatalog.filter(
-      (item) => item.category === categoryFilter
-    )
-  }, [categoryFilter])
+    return tableData.filter((item) => item.category === categoryFilter)
+  }, [categoryFilter, tableData])
+
+  const totalCosmetics = tableData.length
+  const exclusiveCosmetics = tableData.filter(
+    (item) => item.exclusiveToYear !== null,
+  ).length
+  const nonExclusiveCosmetics = totalCosmetics - exclusiveCosmetics
+
+  const latestEntry = React.useMemo(() => {
+    if (!tableData.length) {
+      return null
+    }
+
+    return tableData.reduce<CosmeticRow | null>((latest, item) => {
+      if (!latest) {
+        return item
+      }
+
+      return item.lastTouchedTimestamp > latest.lastTouchedTimestamp
+        ? item
+        : latest
+    }, null)
+  }, [tableData])
+
+  const statCards = [
+    {
+      label: "Catalog size",
+      value: numberFormatter.format(totalCosmetics),
+      detail: totalCosmetics
+        ? `Non-exclusive ${numberFormatter.format(
+            nonExclusiveCosmetics,
+          )} · Exclusive ${numberFormatter.format(exclusiveCosmetics)}`
+        : "No cosmetics found in Supabase.",
+    },
+    {
+      label: "Latest update",
+      value: latestEntry
+        ? dateTimeFormatter.format(new Date(latestEntry.lastTouchedAt))
+        : "—",
+      detail: latestEntry
+        ? `Last changed cosmetic: ${latestEntry.name}`
+        : "Awaiting the first catalog update.",
+    },
+  ]
+
+  const insights = React.useMemo(() => {
+    if (!tableData.length) {
+      return []
+    }
+
+    const typeCounts = new Map<string, number>()
+    for (const item of tableData) {
+      typeCounts.set(item.category, (typeCounts.get(item.category) ?? 0) + 1)
+    }
+
+    let topCategory = ""
+    let topCategoryCount = 0
+    for (const [category, count] of typeCounts.entries()) {
+      if (count > topCategoryCount) {
+        topCategory = category
+        topCategoryCount = count
+      }
+    }
+
+    const exclusiveYears = Array.from(
+      new Set(
+        tableData
+          .filter((item) => item.exclusiveToYear !== null)
+          .map((item) => item.exclusiveToYear as number),
+      ),
+    ).sort((a, b) => a - b)
+
+    const missingSourceCount = tableData.filter((item) => !item.source).length
+
+    const formattedYears =
+      exclusiveYears.length === 0
+        ? null
+        : exclusiveYears.length <= 4
+          ? exclusiveYears.join(", ")
+          : `${exclusiveYears.slice(0, 3).join(", ")}, +${
+              exclusiveYears.length - 3
+            } more`
+
+    return [
+      topCategory
+        ? {
+            label: "Most common type",
+            value: `${topCategory} · ${numberFormatter.format(
+              topCategoryCount,
+            )} cosmetics`,
+          }
+        : {
+            label: "Most common type",
+            value: "Type metadata missing",
+          },
+      {
+        label: "Exclusive programs",
+        value: formattedYears ?? "None recorded",
+      },
+      {
+        label: "Missing source metadata",
+        value: missingSourceCount
+          ? `${numberFormatter.format(
+              missingSourceCount,
+            )} cosmetics need a source`
+          : "All cosmetics have a source",
+      },
+    ]
+  }, [tableData])
 
   return (
     <section className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">
@@ -269,46 +272,38 @@ export function CatalogPage() {
           Cosmetics Catalog
         </h1>
         <p className="text-sm text-muted-foreground">
-          Reference the authoritative list of cosmetics, their finish
-          eligibility, and acquisition sources.
+          Grounded readout of `public.cosmetics`, including exclusive programs
+          and the most recently touched entries.
         </p>
       </header>
 
-      <div className="grid gap-4 lg:grid-cols-3">
-        {catalogHighlights.map((item) => (
+      <div className="grid gap-4 lg:grid-cols-2">
+        {statCards.map((card) => (
           <div
-            key={item.label}
+            key={card.label}
             className="rounded-lg border border-border bg-card p-6 shadow-sm"
           >
             <p className="text-sm font-medium text-muted-foreground">
-              {item.label}
+              {card.label}
             </p>
-            <p className="mt-2 text-2xl font-semibold text-foreground">
-              {item.value}
+            {isLoading ? (
+              <div className="mt-2 h-7 w-24 animate-pulse rounded bg-muted" />
+            ) : (
+              <p className="mt-2 text-2xl font-semibold text-foreground">
+                {card.value}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              {isLoading ? (
+                <span className="inline-block h-3 w-32 animate-pulse rounded bg-muted" />
+              ) : (
+                card.detail
+              )}
             </p>
-            <p className="mt-1 text-xs text-muted-foreground">{item.detail}</p>
           </div>
         ))}
       </div>
 
-      <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
-        <h2 className="text-lg font-semibold leading-none">
-          Catalog maintenance checklist
-        </h2>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Based on `public.cosmetics` schema from the Supabase database.
-        </p>
-        <ul className="mt-4 space-y-3 text-sm text-muted-foreground">
-          {upcomingTasks.map((task) => (
-            <li
-              key={task}
-              className="rounded-md border border-dashed border-border px-4 py-3"
-            >
-              {task}
-            </li>
-          ))}
-        </ul>
-      </div>
 
       <div className="rounded-lg border border-border bg-card p-6 shadow-sm">
         <div className="space-y-1">
@@ -316,73 +311,91 @@ export function CatalogPage() {
             Catalog entries
           </h2>
           <p className="text-xs text-muted-foreground">
-            Snapshot of the tracked cosmetics and their finish readiness.
+            Live snapshot of cosmetics stored in `public.cosmetics`.
           </p>
         </div>
 
-        <DataTable
-          className="mt-6"
-          columns={catalogColumns}
-          data={filteredCosmetics}
-          filterColumn="name"
-          filterPlaceholder="Search cosmetics..."
-          renderToolbar={(table) => {
-            const nameColumn = table.getColumn("name")
-            const searchValue =
-              (nameColumn?.getFilterValue() as string | undefined) ?? ""
-            const isFiltered =
-              Boolean(searchValue) || categoryFilter !== "all"
+        <div className="mt-6">
+          {error ? (
+            <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-6 text-center">
+              <p className="text-sm font-medium text-destructive">
+                Failed to load catalog data.
+              </p>
+              <p className="text-xs text-destructive">{error}</p>
+              <Button size="sm" variant="outline" onClick={loadCosmetics}>
+                Retry
+              </Button>
+            </div>
+          ) : isLoading ? (
+            <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Loading catalog...
+            </div>
+          ) : (
+            <DataTable
+              columns={catalogColumns}
+              data={filteredCosmetics}
+              filterColumn="name"
+              filterPlaceholder="Search cosmetics..."
+              renderToolbar={(table) => {
+                const nameColumn = table.getColumn("name")
+                const searchValue =
+                  (nameColumn?.getFilterValue() as string | undefined) ?? ""
+                const isFiltered =
+                  Boolean(searchValue) || categoryFilter !== "all"
 
-            return (
-              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-                  <Input
-                    value={searchValue}
-                    onChange={(event) =>
-                      nameColumn?.setFilterValue(event.target.value)
-                    }
-                    placeholder="Search cosmetics..."
-                    className="w-full sm:max-w-xs"
-                  />
+                return (
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+                      <Input
+                        value={searchValue}
+                        onChange={(event) =>
+                          nameColumn?.setFilterValue(event.target.value)
+                        }
+                        placeholder="Search cosmetics..."
+                        className="w-full sm:max-w-xs"
+                      />
 
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                      Category
-                    </span>
-                    <select
-                      value={categoryFilter}
-                      onChange={(event) => {
-                        setCategoryFilter(event.target.value)
-                        table.setPageIndex(0)
-                      }}
-                      className="h-9 min-w-[160px] rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                    >
-                      {categoryOptions.map((option) => (
-                        <option key={option} value={option}>
-                          {option === "all" ? "All categories" : option}
-                        </option>
-                      ))}
-                    </select>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                          Type
+                        </span>
+                        <select
+                          value={categoryFilter}
+                          onChange={(event) => {
+                            setCategoryFilter(event.target.value)
+                            table.setPageIndex(0)
+                          }}
+                          className="h-9 min-w-[160px] rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                        >
+                          {categoryOptions.map((option) => (
+                            <option key={option} value={option}>
+                              {option === "all" ? "All types" : option}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    </div>
+
+                    {isFiltered ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          table.resetColumnFilters()
+                          table.setPageIndex(0)
+                          setCategoryFilter("all")
+                        }}
+                      >
+                        Reset filters
+                      </Button>
+                    ) : null}
                   </div>
-                </div>
-
-                {isFiltered ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => {
-                      table.resetColumnFilters()
-                      table.setPageIndex(0)
-                      setCategoryFilter("all")
-                    }}
-                  >
-                    Reset filters
-                  </Button>
-                ) : null}
-              </div>
-            )
-          }}
-        />
+                )
+              }}
+            />
+          )}
+        </div>
       </div>
     </section>
   )
