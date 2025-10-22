@@ -40,6 +40,7 @@ type DataTableProps<TData, TValue> = {
   filterColumn?: string
   filterPlaceholder?: string
   renderToolbar?: (table: TableInstance<TData>) => React.ReactNode
+  entityLabel?: string
 }
 
 export function DataTable<TData, TValue>({
@@ -49,6 +50,7 @@ export function DataTable<TData, TValue>({
   filterColumn,
   filterPlaceholder = "Filter...",
   renderToolbar,
+  entityLabel = "records",
 }: DataTableProps<TData, TValue>) {
   const [sorting, setSorting] = React.useState<SortingState>([])
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
@@ -212,7 +214,7 @@ export function DataTable<TData, TValue>({
           <span className="font-medium text-foreground">
             {table.getFilteredRowModel().rows.length}
           </span>{" "}
-          cosmetics
+          {entityLabel}
         </p>
         <Pagination className="mx-0 justify-center sm:ml-auto sm:justify-end">
           <PaginationContent>

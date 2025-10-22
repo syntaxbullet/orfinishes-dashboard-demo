@@ -337,6 +337,7 @@ export function CatalogPage() {
               data={filteredCosmetics}
               filterColumn="name"
               filterPlaceholder="Search cosmetics..."
+              entityLabel="cosmetics"
               renderToolbar={(table) => {
                 const nameColumn = table.getColumn("name")
                 const searchValue =
