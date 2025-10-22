@@ -44,11 +44,6 @@ export function AppSidebar() {
             </span>
           </div>
         </div>
-        <SidebarInput
-          placeholder="Search catalog or players"
-          aria-label="Search navigation"
-          className="bg-background"
-        />
       </SidebarHeader>
       <SidebarContent>
         {navigationGroups.map((group) => (

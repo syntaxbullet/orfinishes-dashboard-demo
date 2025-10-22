@@ -8,7 +8,6 @@ import { DashboardPage } from "./pages/dashboard";
 import { CatalogPage } from "./pages/catalog";
 import { EventsPage } from "./pages/events";
 import { PlayersPage } from "./pages/players";
-import { SettingsPage } from "./pages/settings";
 
 const router = createBrowserRouter([
   {
@@ -30,10 +29,6 @@ const router = createBrowserRouter([
       {
         path: "players",
         element: <PlayersPage />,
-      },
-      {
-        path: "settings",
-        element: <SettingsPage />,
       },
     ],
   },

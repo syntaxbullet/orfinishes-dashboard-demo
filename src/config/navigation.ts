@@ -62,18 +62,6 @@ export const navigationGroups: AppNavGroup[] = [
       },
     ],
   },
-  {
-    label: "More",
-    items: [
-      {
-        title: "Settings",
-        href: "/settings",
-        icon: Settings,
-        description:
-          "Configure retention limits, minting guards, and access rules.",
-      },
-    ],
-  },
 ];
 
 export const allNavigationItems = navigationGroups.flatMap(

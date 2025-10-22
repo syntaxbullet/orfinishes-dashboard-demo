@@ -606,23 +606,40 @@ export async function fetchPlayers(
 export async function fetchItemOwnershipSnapshots(): Promise<
   ItemOwnershipSnapshot[]
 > {
-  const { data, error } = await supabase
-    .rpc("fetch_item_ownership_snapshots")
-    .returns<ItemOwnershipSnapshot[]>();
+  const PAGE_SIZE = 1000;
+  const results: ItemOwnershipSnapshot[] = [];
 
-  if (error) {
-    raise(error);
+  let offset = 0;
+
+  while (true) {
+    const limit = offset + PAGE_SIZE - 1;
+    const { data, error } = await supabase
+      .rpc("fetch_item_ownership_snapshots")
+      .range(offset, limit)
+      .returns<ItemOwnershipSnapshot[]>();
+
+    if (error) {
+      raise(error);
+    }
+
+    if (!data) {
+      break;
+    }
+
+    if (!Array.isArray(data)) {
+      throw new Error(
+        "Supabase returned an unexpected payload for fetch_item_ownership_snapshots.",
+      );
+    }
+
+    results.push(...data);
+
+    if (data.length < PAGE_SIZE) {
+      break;
+    }
+
+    offset += PAGE_SIZE;
   }
 
-  if (!data) {
-    return [];
-  }
-
-  if (!Array.isArray(data)) {
-    throw new Error(
-      "Supabase returned an unexpected payload for fetch_item_ownership_snapshots.",
-    );
-  }
-
-  return data;
+  return results;
 }
