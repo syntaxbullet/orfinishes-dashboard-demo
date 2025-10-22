@@ -4,12 +4,103 @@ import {
   type PostgrestSingleResponse,
 } from "@supabase/supabase-js";
 
-
-
 const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_PUBLISHABLE_DEFAULT_KEY;
 
 export const supabase = createClient(supabaseUrl!, supabaseKey!);
+
+type CacheEntry<T> =
+  | { status: "pending"; promise: Promise<T> }
+  | { status: "resolved"; value: T };
+
+type CacheOptions = {
+  forceRefresh?: boolean;
+};
+
+const cacheStore = new Map<string, CacheEntry<unknown>>();
+
+const getCacheEntry = <T>(key: string): CacheEntry<T> | undefined => {
+  return cacheStore.get(key) as CacheEntry<T> | undefined;
+};
+
+const setCacheEntry = <T>(key: string, entry: CacheEntry<T>) => {
+  cacheStore.set(key, entry as CacheEntry<unknown>);
+};
+
+function stableStringify(value: unknown): string {
+  if (value === null) {
+    return "null";
+  }
+
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => stableStringify(item)).join(",")}]`;
+  }
+
+  if (typeof value === "object" && value !== undefined) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, val]) => `"${key}":${stableStringify(val)}`);
+
+    return `{${entries.join(",")}}`;
+  }
+
+  if (typeof value === "string") {
+    return JSON.stringify(value);
+  }
+
+  return String(value);
+}
+
+function buildCacheKey(prefix: string, payload?: unknown): string {
+  if (payload === undefined) {
+    return prefix;
+  }
+
+  return `${prefix}:${stableStringify(payload)}`;
+}
+
+async function readThroughCache<T>(
+  key: string,
+  fetcher: () => Promise<T>,
+  options: CacheOptions = {},
+): Promise<T> {
+  if (!options.forceRefresh) {
+    const existing = getCacheEntry<T>(key);
+
+    if (existing?.status === "resolved") {
+      return existing.value;
+    }
+
+    if (existing?.status === "pending") {
+      return existing.promise;
+    }
+  }
+
+  const fetchPromise = fetcher();
+
+  const trackedPromise = fetchPromise
+    .then((value) => {
+      setCacheEntry(key, { status: "resolved", value });
+      return value;
+    })
+    .catch((error) => {
+      cacheStore.delete(key);
+      throw error;
+    });
+
+  setCacheEntry(key, { status: "pending", promise: trackedPromise });
+
+  return trackedPromise;
+}
+
+function invalidateCache(prefix: string) {
+  for (const key of Array.from(cacheStore.keys())) {
+    if (key === prefix || key.startsWith(`${prefix}:`)) {
+      cacheStore.delete(key);
+    }
+  }
+}
 
 const raise = (error: PostgrestError): never => {
   const details = [error.message, error.details, error.hint]
@@ -105,45 +196,77 @@ export async function fetchCosmetics(
   options: QueryOptions & {
     search?: string;
     exclusiveToYear?: number | null;
+    forceRefresh?: boolean;
   } = {},
 ): Promise<CosmeticRecord[]> {
-  let query = supabase
-    .from("cosmetics")
-    .select("*")
-    .order("name", { ascending: true });
+  const { forceRefresh, ...queryOptions } = options;
 
-  if (options.search) {
-    query = query.ilike("name", `%${options.search}%`);
-  }
+  const cacheKey = buildCacheKey("cosmetics", {
+    exclusiveToYear: Object.prototype.hasOwnProperty.call(
+      queryOptions,
+      "exclusiveToYear",
+    )
+      ? queryOptions.exclusiveToYear
+      : undefined,
+    limit: queryOptions.limit ?? null,
+    search: queryOptions.search ?? null,
+  });
 
-  if (options.exclusiveToYear === null) {
-    query = query.is("exclusive_to_year", null);
-  } else if (typeof options.exclusiveToYear === "number") {
-    query = query.eq("exclusive_to_year", options.exclusiveToYear);
-  }
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from("cosmetics")
+        .select("*")
+        .order("name", { ascending: true });
 
-  if (options.limit) {
-    query = query.limit(options.limit);
-  }
+      if (queryOptions.search) {
+        query = query.ilike("name", `%${queryOptions.search}%`);
+      }
 
-  const { data, error } = await query.returns<CosmeticRecord[]>();
+      if (queryOptions.exclusiveToYear === null) {
+        query = query.is("exclusive_to_year", null);
+      } else if (typeof queryOptions.exclusiveToYear === "number") {
+        query = query.eq("exclusive_to_year", queryOptions.exclusiveToYear);
+      }
 
-  if (error) {
-    raise(error);
-  }
+      if (queryOptions.limit) {
+        query = query.limit(queryOptions.limit);
+      }
 
-  return data ?? [];
+      const { data, error } = await query.returns<CosmeticRecord[]>();
+
+      if (error) {
+        raise(error);
+      }
+
+      return data ?? [];
+    },
+    { forceRefresh },
+  );
 }
 
-export async function fetchCosmeticById(id: string): Promise<CosmeticRecord> {
-  const response = await supabase
-    .from("cosmetics")
-    .select("*")
-    .eq("id", id)
-    .returns<CosmeticRecord>()
-    .single();
+export async function fetchCosmeticById(
+  id: string,
+  options: CacheOptions = {},
+): Promise<CosmeticRecord> {
+  const normalizedId = id.trim();
+  const cacheKey = buildCacheKey("cosmeticById", normalizedId);
 
-  return unwrap(response);
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const response = await supabase
+        .from("cosmetics")
+        .select("*")
+        .eq("id", normalizedId)
+        .returns<CosmeticRecord>()
+        .single();
+
+      return unwrap(response);
+    },
+    options,
+  );
 }
 
 export async function fetchItems(
@@ -180,27 +303,224 @@ export async function fetchItems(
   return data ?? [];
 }
 
+export async function fetchItemsByIds(
+  ids: string[],
+  options: CacheOptions = {},
+): Promise<ItemRecord[]> {
+  const normalizedIds = ids
+    .map((id) => (typeof id === "string" ? id.trim() : ""))
+    .filter((value) => value.length > 0);
+  const uniqueIds = Array.from(new Set(normalizedIds)).sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const cacheKey = buildCacheKey("itemsByIds", uniqueIds);
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const CHUNK_SIZE = 100;
+      const results: ItemRecord[] = [];
+
+      for (let index = 0; index < uniqueIds.length; index += CHUNK_SIZE) {
+        const chunk = uniqueIds.slice(index, index + CHUNK_SIZE);
+
+        const { data, error } = await supabase
+          .from("items")
+          .select("*")
+          .in("id", chunk)
+          .returns<ItemRecord[]>();
+
+        if (error) {
+          raise(error);
+        }
+
+        if (data?.length) {
+          results.push(...data);
+        }
+      }
+
+      return results;
+    },
+    options,
+  );
+}
+
+export async function fetchCosmeticsByIds(
+  ids: string[],
+  options: CacheOptions = {},
+): Promise<CosmeticRecord[]> {
+  const normalizedIds = ids
+    .map((id) => (typeof id === "string" ? id.trim() : ""))
+    .filter((value) => value.length > 0);
+  const uniqueIds = Array.from(new Set(normalizedIds)).sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const cacheKey = buildCacheKey("cosmeticsByIds", uniqueIds);
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const CHUNK_SIZE = 100;
+      const results: CosmeticRecord[] = [];
+
+      for (let index = 0; index < uniqueIds.length; index += CHUNK_SIZE) {
+        const chunk = uniqueIds.slice(index, index + CHUNK_SIZE);
+
+        const { data, error } = await supabase
+          .from("cosmetics")
+          .select("*")
+          .in("id", chunk)
+          .returns<CosmeticRecord[]>();
+
+        if (error) {
+          raise(error);
+        }
+
+        if (data?.length) {
+          results.push(...data);
+        }
+      }
+
+      return results;
+    },
+    options,
+  );
+}
+
 export async function fetchOwnershipEventsForItem(
   itemId: string,
-  options: QueryOptions = {},
+  options: QueryOptions & CacheOptions = {},
 ): Promise<OwnershipEventRecord[]> {
-  let query = supabase
-    .from("ownership_events")
-    .select("*")
-    .eq("item_id", itemId)
-    .order("occurred_at", { ascending: false });
+  const { forceRefresh, ...queryOptions } = options;
+  const normalizedItemId = itemId.trim();
+  const cacheKey = buildCacheKey("ownershipEventsForItem", {
+    itemId: normalizedItemId,
+    limit: queryOptions.limit ?? null,
+  });
 
-  if (options.limit) {
-    query = query.limit(options.limit);
-  }
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from("ownership_events")
+        .select("*")
+        .eq("item_id", normalizedItemId)
+        .order("occurred_at", { ascending: false });
 
-  const { data, error } = await query.returns<OwnershipEventRecord[]>();
+      if (queryOptions.limit) {
+        query = query.limit(queryOptions.limit);
+      }
 
-  if (error) {
-    raise(error);
-  }
+      const { data, error } = await query.returns<OwnershipEventRecord[]>();
 
-  return data ?? [];
+      if (error) {
+        raise(error);
+      }
+
+      return data ?? [];
+    },
+    { forceRefresh },
+  );
+}
+
+export async function fetchOwnershipEvents(
+  options: QueryOptions & {
+    action?: OwnershipAction;
+    search?: string;
+    forceRefresh?: boolean;
+  } = {},
+): Promise<OwnershipEventRecord[]> {
+  const { forceRefresh, ...queryOptions } = options;
+  const cacheKey = buildCacheKey("ownershipEvents", {
+    action: queryOptions.action ?? null,
+    limit: queryOptions.limit ?? null,
+    search:
+      typeof queryOptions.search === "string"
+        ? queryOptions.search.trim()
+        : null,
+  });
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const PAGE_SIZE = 1000;
+      const results: OwnershipEventRecord[] = [];
+      const totalLimit = typeof queryOptions.limit === "number"
+        ? queryOptions.limit
+        : null;
+
+      let offset = 0;
+
+      while (true) {
+        if (totalLimit !== null && results.length >= totalLimit) {
+          break;
+        }
+
+        const remaining =
+          totalLimit !== null ? totalLimit - results.length : PAGE_SIZE;
+
+        if (totalLimit !== null && remaining <= 0) {
+          break;
+        }
+
+        const pageSize = totalLimit !== null
+          ? Math.min(PAGE_SIZE, remaining)
+          : PAGE_SIZE;
+
+        let query = supabase
+          .from("ownership_events")
+          .select("*")
+          .order("occurred_at", { ascending: false });
+
+        if (queryOptions.action) {
+          query = query.eq("action", queryOptions.action);
+        }
+
+        if (
+          typeof queryOptions.search === "string" &&
+          queryOptions.search.trim() !== ""
+        ) {
+          const term = `%${queryOptions.search.trim()}%`;
+          query = query.or(
+            `item_id.ilike.${term},from_player.ilike.${term},to_player.ilike.${term}`,
+          );
+        }
+
+        query = query.range(offset, offset + pageSize - 1);
+
+        const { data, error } = await query.returns<OwnershipEventRecord[]>();
+
+        if (error) {
+          raise(error);
+        }
+
+        if (!data || data.length === 0) {
+          break;
+        }
+
+        results.push(...data);
+
+        if (data.length < pageSize) {
+          break;
+        }
+
+        offset += pageSize;
+      }
+
+      return results;
+    },
+    { forceRefresh },
+  );
 }
 
 export async function createOwnershipEvent(
@@ -221,42 +541,66 @@ export async function createOwnershipEvent(
     .returns<OwnershipEventRecord>()
     .single();
 
-  return unwrap(response);
+  const record = unwrap(response);
+
+  invalidateCache("ownershipEvents");
+  invalidateCache("ownershipEventsForItem");
+
+  return record;
 }
 
 export async function fetchPlayers(
   options: QueryOptions & {
     search?: string;
     includeBanned?: boolean;
+    forceRefresh?: boolean;
   } = {},
 ): Promise<PlayerRecord[]> {
-  let query = supabase
-    .from("players")
-    .select("*")
-    .order("display_name", { ascending: true, nullsFirst: false });
+  const { forceRefresh, ...queryOptions } = options;
+  const includeBanned = Boolean(queryOptions.includeBanned);
+  const normalizedSearch = typeof queryOptions.search === "string"
+    ? queryOptions.search.trim()
+    : "";
 
-  if (options.search) {
-    const term = `%${options.search}%`;
-    query = query.or(
-      `display_name.ilike.${term},minecraft_uuid.ilike.${term}`,
-    );
-  }
+  const cacheKey = buildCacheKey("players", {
+    includeBanned,
+    limit: queryOptions.limit ?? null,
+    search: normalizedSearch || null,
+  });
 
-  if (!options.includeBanned) {
-    query = query.or("is_banned.is.null,is_banned.eq.false");
-  }
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from("players")
+        .select("*")
+        .order("display_name", { ascending: true, nullsFirst: false });
 
-  if (options.limit) {
-    query = query.limit(options.limit);
-  }
+      if (normalizedSearch) {
+        const term = `%${normalizedSearch}%`;
+        query = query.or(
+          `display_name.ilike.${term},minecraft_uuid.ilike.${term}`,
+        );
+      }
 
-  const { data, error } = await query.returns<PlayerRecord[]>();
+      if (!includeBanned) {
+        query = query.or("is_banned.is.null,is_banned.eq.false");
+      }
 
-  if (error) {
-    raise(error);
-  }
+      if (queryOptions.limit) {
+        query = query.limit(queryOptions.limit);
+      }
 
-  return data ?? [];
+      const { data, error } = await query.returns<PlayerRecord[]>();
+
+      if (error) {
+        raise(error);
+      }
+
+      return data ?? [];
+    },
+    { forceRefresh },
+  );
 }
 
 export async function fetchItemOwnershipSnapshots(): Promise<

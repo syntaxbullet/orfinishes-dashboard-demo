@@ -34,24 +34,17 @@ export const navigationGroups: AppNavGroup[] = [
         description:
           "Key counts for cosmetics, minted items, and ownership churn.",
       },
-      {
-        title: "Cosmetics Catalog",
-        href: "/catalog",
-        icon: Sparkles,
-        description:
-          "Browse every cosmetic definition, finish availability, and sources.",
-      },
     ],
   },
   {
     label: "Records",
     items: [
       {
-        title: "Minted Items",
-        href: "/items",
-        icon: Boxes,
+        title: "Cosmetics Catalog",
+        href: "/catalog",
+        icon: Sparkles,
         description:
-          "Audit minted instances, finish types, and current ownership.",
+          "Browse every cosmetic definition, finish availability, and sources.",
       },
       {
         title: "Ownership Events",
@@ -67,17 +60,10 @@ export const navigationGroups: AppNavGroup[] = [
         description:
           "Manage player profiles, minting stats, and ban indicators.",
       },
-      {
-        title: "Reports",
-        href: "/reports",
-        icon: FileText,
-        description:
-          "Generate exports for catalog syncs, audits, and retention reviews.",
-      },
     ],
   },
   {
-    label: "Operations",
+    label: "More",
     items: [
       {
         title: "Settings",
@@ -85,13 +71,6 @@ export const navigationGroups: AppNavGroup[] = [
         icon: Settings,
         description:
           "Configure retention limits, minting guards, and access rules.",
-      },
-      {
-        title: "Operations Runbook",
-        href: "/runbook",
-        icon: LifeBuoy,
-        description:
-          "Document procedures for incidents, migrations, and data repairs.",
       },
     ],
   },

@@ -30,10 +30,10 @@ export function RootLayout() {
       <AppSidebar />
       <SidebarInset className="bg-background">
         <div className="flex min-h-svh flex-col text-foreground transition-colors">
-          <header className="flex h-16 items-center justify-between gap-2 border-b border-border bg-background/80 px-4 backdrop-blur sm:px-6">
-            <div className="flex items-center gap-3">
+          <header className="flex h-16 items-center justify-between gap-2 border-b border-border bg-background/80 px-6 backdrop-blur sm:px-8">
+            <div className="flex items-center gap-4">
               <SidebarTrigger className="md:hidden" />
-              <div className="space-y-0.5">
+              <div className="space-y-1">
                 <p className="text-sm font-semibold leading-none tracking-tight">
                   {heading}
                 </p>
@@ -41,13 +41,6 @@ export function RootLayout() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                className="hidden sm:inline-flex"
-              >
-                Mint Item
-              </Button>
               <Button size="sm">Log Event</Button>
               <ThemeToggle />
             </div>

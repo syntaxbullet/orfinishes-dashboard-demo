@@ -37,10 +37,10 @@ export function AppSidebar() {
           </div>
           <div className="grid flex-1 leading-tight">
             <span className="text-sm font-semibold tracking-tight">
-              Orfinishes
+              ORFinishes
             </span>
             <span className="text-xs text-muted-foreground">
-              Finish Control Center
+              Admin Panel
             </span>
           </div>
         </div>

@@ -64,12 +64,21 @@ const fetchMojangProfile = async (uuid: string): Promise<{ id: string; name: str
   return { id: payload.id, name: payload.name };
 };
 
-const refreshAvatar = async (uuid: string, size: number, objectKey: string) => {
+type AvatarRefreshResult = {
+  bytes: Uint8Array;
+  syncedAt: string;
+};
+
+const refreshAvatar = async (
+  uuid: string,
+  size: number,
+  objectKey: string,
+): Promise<AvatarRefreshResult | null> => {
   try {
     const avatarBytes = await fetchMojangAvatar(uuid, size);
     if (!avatarBytes) {
-      console.warn(`Avatar not found for UUID ${uuid}`);
-      return;
+      console.warn(`[minecraft-avatar] Avatar not found upstream`, { uuid, size });
+      return null;
     }
 
     const uploadResult = await supabase.storage
@@ -95,8 +104,11 @@ const refreshAvatar = async (uuid: string, size: number, objectKey: string) => {
     if (updateError) {
       throw updateError;
     }
+
+    return { bytes: avatarBytes, syncedAt: nowIso };
   } catch (error) {
-    console.error("Failed to refresh avatar", error);
+    console.error("Failed to refresh avatar", { uuid, size, error });
+    return null;
   }
 };
 
@@ -252,13 +264,7 @@ Deno.serve(async (req) => {
       lastSynced,
     });
     queueMicrotask(() => {
-      refreshAvatar(uuid, size, objectKey).catch((error) =>
-        console.error("[minecraft-avatar] Avatar refresh microtask failed", {
-          uuid,
-          size,
-          error,
-        }),
-      );
+      void refreshAvatar(uuid, size, objectKey);
     });
   }
 
@@ -273,15 +279,25 @@ Deno.serve(async (req) => {
         uuid,
         size,
       });
-      queueMicrotask(() => {
-        refreshAvatar(uuid, size, objectKey).catch((error) =>
-          console.error("[minecraft-avatar] Avatar cold-refresh failed", {
-            uuid,
-            size,
-            error,
-          }),
-        );
-      });
+      const refreshed = await refreshAvatar(uuid, size, objectKey);
+
+      if (refreshed) {
+        console.log("[minecraft-avatar] Returning freshly cached avatar", {
+          uuid,
+          size,
+        });
+
+        return new Response(refreshed.bytes, {
+          status: 200,
+          headers: {
+            ...corsHeaders,
+            "Content-Type": "image/png",
+            "Cache-Control": "public, max-age=60",
+            "X-Avatar-Stale": "0",
+            "X-Profile-Stale": isProfileStale ? "1" : "0",
+          },
+        });
+      }
 
       return Response.json(
         { error: "Avatar not cached yet" },

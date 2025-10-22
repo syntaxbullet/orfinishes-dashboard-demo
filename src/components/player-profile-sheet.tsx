@@ -338,7 +338,7 @@ export function PlayerProfileSheet({
 
         <Separator className="mx-4" />
 
-        <div className="p-4 pt-3">
+        <div className="p-4 pt-3 overflow-auto">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Owned finishes
           </h3>
@@ -353,7 +353,7 @@ export function PlayerProfileSheet({
               {error}
             </p>
           ) : ownedFinishes.length ? (
-            <ul className="mt-4 max-h-[360px] space-y-3 overflow-y-auto pr-1">
+            <ul className="mt-4 space-y-3 overflow-y-scroll pr-1">
               {ownedFinishes.map(({ item, cosmetic }) => {
                 const ownedSince =
                   item.minted_at ?? item.updated_at ?? item.created_at ?? null

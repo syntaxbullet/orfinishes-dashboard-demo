@@ -7,10 +7,7 @@ import { RootLayout } from "./layouts/root-layout";
 import { DashboardPage } from "./pages/dashboard";
 import { CatalogPage } from "./pages/catalog";
 import { EventsPage } from "./pages/events";
-import { ItemsPage } from "./pages/items";
 import { PlayersPage } from "./pages/players";
-import { RunbookPage } from "./pages/runbook";
-import { ReportsPage } from "./pages/reports";
 import { SettingsPage } from "./pages/settings";
 
 const router = createBrowserRouter([
@@ -27,10 +24,6 @@ const router = createBrowserRouter([
         element: <CatalogPage />,
       },
       {
-        path: "items",
-        element: <ItemsPage />,
-      },
-      {
         path: "events",
         element: <EventsPage />,
       },
@@ -39,16 +32,8 @@ const router = createBrowserRouter([
         element: <PlayersPage />,
       },
       {
-        path: "reports",
-        element: <ReportsPage />,
-      },
-      {
         path: "settings",
         element: <SettingsPage />,
-      },
-      {
-        path: "runbook",
-        element: <RunbookPage />,
       },
     ],
   },

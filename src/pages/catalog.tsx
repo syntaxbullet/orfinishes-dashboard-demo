@@ -91,11 +91,12 @@ export function CatalogPage() {
   const [isLoading, setIsLoading] = React.useState(true)
   const [error, setError] = React.useState<string | null>(null)
 
-  const loadCosmetics = React.useCallback(async () => {
+  const loadCosmetics = React.useCallback(async (options?: { forceRefresh?: boolean }) => {
+    const forceRefresh = options?.forceRefresh ?? false
     setIsLoading(true)
     setError(null)
     try {
-      const data = await fetchCosmetics()
+      const data = await fetchCosmetics({ forceRefresh })
       setCosmetics(data)
     } catch (err) {
       setError(
@@ -320,12 +321,16 @@ export function CatalogPage() {
             <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-6 text-center">
               <p className="text-sm font-medium text-destructive">
                 Failed to load catalog data.
-              </p>
-              <p className="text-xs text-destructive">{error}</p>
-              <Button size="sm" variant="outline" onClick={loadCosmetics}>
-                Retry
-              </Button>
-            </div>
+          </p>
+          <p className="text-xs text-destructive">{error}</p>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => loadCosmetics({ forceRefresh: true })}
+          >
+            Retry
+          </Button>
+        </div>
           ) : isLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
