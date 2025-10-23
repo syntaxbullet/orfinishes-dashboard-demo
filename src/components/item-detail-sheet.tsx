@@ -19,9 +19,11 @@ import { cn } from "@/lib/utils"
 import {
   fetchOwnershipEventsForItem,
   fetchPlayers,
+  fetchCosmeticById,
   type ItemRecord,
   type OwnershipEventRecord,
   type PlayerRecord,
+  type CosmeticRecord,
 } from "@/utils/supabase"
 
 type OwnershipEventWithProfiles = {
@@ -59,6 +61,7 @@ export function ItemDetailSheet({
   const [isLoading, setIsLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
   const [players, setPlayers] = React.useState<PlayerRecord[]>([])
+  const [cosmetic, setCosmetic] = React.useState<CosmeticRecord | null>(null)
 
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
@@ -81,6 +84,15 @@ export function ItemDetailSheet({
           return
         }
         setPlayers(playersData)
+
+        // Load cosmetic data if item has a cosmetic ID
+        if (item.cosmetic) {
+          const cosmeticData = await fetchCosmeticById(item.cosmetic)
+          if (cancelled) {
+            return
+          }
+          setCosmetic(cosmeticData)
+        }
 
         // Load ownership events for this item
         const events = await fetchOwnershipEventsForItem(item.id)
@@ -226,7 +238,7 @@ export function ItemDetailSheet({
 
               <div className="flex flex-1 flex-col gap-1.5">
                 <SheetTitle className="text-2xl font-semibold text-foreground">
-                  {item?.cosmetic?.trim() || "Unknown Item"}
+                  {cosmetic?.name || "Unknown Item"}
                 </SheetTitle>
                 <SheetDescription className="text-xs">
                   Finish Type{" "}
