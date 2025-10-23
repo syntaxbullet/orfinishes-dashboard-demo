@@ -9,6 +9,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet"
+import { PlayerAvatar } from "@/components/player-avatar"
+import { PlayerStatusBadge } from "@/components/player-status-badge"
+import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
+import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
 import {
   fetchCosmeticsByIds,
@@ -17,17 +21,6 @@ import {
   type ItemRecord,
   type PlayerRecord,
 } from "@/utils/supabase"
-
-const numberFormatter = new Intl.NumberFormat("en-US")
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-})
 
 type OwnedFinish = {
   item: ItemRecord
@@ -40,46 +33,6 @@ export type PlayerProfileSheetProps = {
   onOpenChange: (open: boolean) => void
 }
 
-function normalizeMinecraftUuid(uuid: string | null): string | null {
-  if (!uuid) {
-    return null
-  }
-
-  const normalized = uuid.replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-  return normalized.length === 32 ? normalized : null
-}
-
-function buildPlayerAvatarUrl(player: PlayerRecord): string | null {
-  const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
-  if (!normalizedUuid) {
-    return null
-  }
-
-  const revisionSource =
-    player.avatar_synced_at ??
-    player.profile_synced_at ??
-    player.updated_at ??
-    player.created_at
-
-  let revisionParam: string | null = null
-
-  if (revisionSource) {
-    const timestamp = Date.parse(revisionSource)
-    if (!Number.isNaN(timestamp)) {
-      revisionParam = String(timestamp)
-    }
-  }
-
-  const searchParams = new URLSearchParams({
-    size: "112",
-  })
-
-  if (revisionParam) {
-    searchParams.set("rev", revisionParam)
-  }
-
-  return `/api/minecraft-profile/${normalizedUuid}/avatar?${searchParams.toString()}`
-}
 
 export function PlayerProfileSheet({
   player,
@@ -172,7 +125,7 @@ export function PlayerProfileSheet({
   }, [player?.id, open])
 
   const avatarUrl = React.useMemo(
-    () => (player ? buildPlayerAvatarUrl(player) : null),
+    () => (player ? buildPlayerAvatarUrl(player, 112) : null),
     [player],
   )
 
@@ -224,12 +177,12 @@ export function PlayerProfileSheet({
         icon: Sparkles,
       },
       {
-        label: "Minted items",
+        label: "Unboxed items",
         value: numberFormatter.format(mintedCount),
         detail:
           latestMintTimestamp !== null
-            ? `Latest mint ${dateFormatter.format(new Date(latestMintTimestamp))}`
-            : "No minted items recorded",
+            ? `Latest unbox ${dateFormatter.format(new Date(latestMintTimestamp))}`
+            : "No unboxed items recorded",
         icon: Star,
       },
       {
@@ -248,17 +201,6 @@ export function PlayerProfileSheet({
     [player],
   )
 
-  const statusBadgeClass = React.useMemo(() => {
-    if (!player) {
-      return "border-muted-foreground/30 bg-muted text-muted-foreground"
-    }
-
-    if (player.is_banned) {
-      return "border-destructive/40 bg-destructive/10 text-destructive"
-    }
-
-    return "border-emerald-500/40 bg-emerald-500/10 text-emerald-600"
-  }, [player])
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
@@ -266,18 +208,15 @@ export function PlayerProfileSheet({
         <SheetHeader className="gap-4 p-4 pb-0">
           <div className="flex items-start gap-4">
             <div className="relative">
-              {avatarUrl ? (
-                <img
-                  src={avatarUrl}
-                  alt={player?.display_name ?? "Player avatar"}
-                  className="h-20 w-20 rounded-lg border border-border object-cover"
-                  loading="lazy"
+              {player ? (
+                <PlayerAvatar 
+                  profile={createPlayerDisplayInfo(player, 112)} 
+                  size="xl" 
+                  className="rounded-lg"
                 />
               ) : (
                 <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted text-2xl font-semibold uppercase text-muted-foreground">
-                  {(player?.display_name?.trim().charAt(0).toUpperCase() ||
-                    player?.minecraft_uuid?.charAt(0)?.toUpperCase() ||
-                    "?")}
+                  ?
                 </div>
               )}
             </div>
@@ -297,14 +236,7 @@ export function PlayerProfileSheet({
                 )}
               </SheetDescription>
               <div>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-medium capitalize",
-                    statusBadgeClass,
-                  )}
-                >
-                  {player?.is_banned ? "Banned" : "Active"}
-                </span>
+                <PlayerStatusBadge isBanned={Boolean(player?.is_banned)} />
               </div>
             </div>
           </div>
@@ -387,7 +319,7 @@ export function PlayerProfileSheet({
                       </p>
                       {mintedByPlayer ? (
                         <p className="text-xs text-emerald-600">
-                          Minted directly by this player
+                          Unboxed directly by this player
                         </p>
                       ) : null}
                     </div>
