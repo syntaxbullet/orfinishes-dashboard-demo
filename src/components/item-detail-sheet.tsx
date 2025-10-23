@@ -226,7 +226,7 @@ export function ItemDetailSheet({
 
               <div className="flex flex-1 flex-col gap-1.5">
                 <SheetTitle className="text-2xl font-semibold text-foreground">
-                  {item?.id || "Unknown Item"}
+                  {item?.cosmetic?.trim() || "Unknown Item"}
                 </SheetTitle>
                 <SheetDescription className="text-xs">
                   Finish Type{" "}

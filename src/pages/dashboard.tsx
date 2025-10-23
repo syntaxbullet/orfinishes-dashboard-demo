@@ -32,7 +32,7 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const unboxedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
+const mintedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
 
 
 export function DashboardPage() {
@@ -152,7 +152,7 @@ export function DashboardPage() {
 
       if (isWithinTimeWindow(timestamp, sevenDaysAgo)) {
         totalLast7 += 1
-        if (unboxedActionSet.has(event.action)) {
+        if (mintedActionSet.has(event.action)) {
           mintedLast7 += 1
         } else if (event.action === "transfer") {
           transferLast7 += 1
@@ -161,7 +161,7 @@ export function DashboardPage() {
         }
       } else if (isWithinTimeWindow(timestamp, fourteenDaysAgo)) {
         totalPrev7 += 1
-        if (unboxedActionSet.has(event.action)) {
+        if (mintedActionSet.has(event.action)) {
           mintedPrev7 += 1
         } else if (event.action === "transfer") {
           transferPrev7 += 1

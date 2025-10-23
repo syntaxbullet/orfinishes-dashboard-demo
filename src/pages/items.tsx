@@ -34,9 +34,9 @@ type ItemRow = {
   cosmeticType: string
   finishType: string
   currentOwner: PlayerDisplayInfo | null
-  unboxedBy: PlayerDisplayInfo | null
-  unboxedAt: string | null
-  unboxedTimestamp: number
+  mintedBy: PlayerDisplayInfo | null
+  mintedAt: string | null
+  mintedTimestamp: number
   ownershipStatus: "Owned" | "Unassigned"
   createdAt: string
   searchableText: string
@@ -136,16 +136,16 @@ function createItemColumns(
       },
     },
     {
-      accessorKey: "unboxedBy",
-      header: "Unboxed By",
+      accessorKey: "mintedBy",
+      header: "Minted By",
       cell: ({ row }) => {
-        const unboxer = row.original.unboxedBy
-        if (!unboxer) {
+        const minter = row.original.mintedBy
+        if (!minter) {
           return <span className="text-sm text-muted-foreground">Unknown</span>
         }
 
         const handleClick = () => {
-          const player = resolvePlayerByIdentifier(unboxer.id, playerLookup)
+          const player = resolvePlayerByIdentifier(minter.id, playerLookup)
           if (player) {
             onPlayerClick(player)
           }
@@ -156,19 +156,19 @@ function createItemColumns(
             type="button"
             onClick={handleClick}
             className="flex w-full items-center gap-2 rounded-md border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-            aria-label={`Open profile for ${unboxer.displayName}`}
+            aria-label={`Open profile for ${minter.displayName}`}
           >
-            <PlayerAvatar profile={unboxer} size="sm" />
+            <PlayerAvatar profile={minter} size="sm" />
             <div className="space-y-1">
-              <p className="text-sm font-medium text-foreground">{unboxer.displayName}</p>
-              <p className="text-xs text-muted-foreground">{unboxer.id}</p>
+              <p className="text-sm font-medium text-foreground">{minter.displayName}</p>
+              <p className="text-xs text-muted-foreground">{minter.id}</p>
             </div>
           </button>
         )
       },
       sortingFn: (a, b) => {
-        const aName = a.original.unboxedBy?.displayName ?? ""
-        const bName = b.original.unboxedBy?.displayName ?? ""
+        const aName = a.original.mintedBy?.displayName ?? ""
+        const bName = b.original.mintedBy?.displayName ?? ""
         return aName.localeCompare(bName)
       },
     },
@@ -193,15 +193,15 @@ function createItemColumns(
       sortingFn: (a, b) => a.original.ownershipStatus.localeCompare(b.original.ownershipStatus),
     },
     {
-      accessorKey: "unboxedAt",
-      header: "Unboxed",
+      accessorKey: "mintedAt",
+      header: "Minted",
       cell: ({ row }) => {
-        const unboxedAt = row.original.unboxedAt
-        if (!unboxedAt) {
+        const mintedAt = row.original.mintedAt
+        if (!mintedAt) {
           return <span className="text-sm text-muted-foreground">—</span>
         }
 
-        const date = new Date(unboxedAt)
+        const date = new Date(mintedAt)
         if (Number.isNaN(date.getTime())) {
           return <span className="text-sm text-muted-foreground">—</span>
         }
@@ -212,7 +212,7 @@ function createItemColumns(
           </span>
         )
       },
-      sortingFn: (a, b) => a.original.unboxedTimestamp - b.original.unboxedTimestamp,
+      sortingFn: (a, b) => a.original.mintedTimestamp - b.original.mintedTimestamp,
     },
   ]
 }
@@ -307,14 +307,14 @@ export function ItemsPage() {
         ? createPlayerDisplayInfo(currentOwner, ITEM_AVATAR_SIZE)
         : null
 
-      const unboxedBy = item.unboxed_by
-        ? resolvePlayerByIdentifier(item.unboxed_by, playerLookup)
+      const mintedBy = item.minted_by
+        ? resolvePlayerByIdentifier(item.minted_by, playerLookup)
         : null
-      const unboxedByProfile = unboxedBy
-        ? createPlayerDisplayInfo(unboxedBy, ITEM_AVATAR_SIZE)
+      const mintedByProfile = mintedBy
+        ? createPlayerDisplayInfo(mintedBy, ITEM_AVATAR_SIZE)
         : null
 
-      const unboxedTimestamp = item.unboxed_at ? Date.parse(item.unboxed_at) : -Infinity
+      const mintedTimestamp = item.minted_at ? Date.parse(item.minted_at) : -Infinity
       const ownershipStatus = item.current_owner ? "Owned" : "Unassigned"
 
       const searchTokens = [
@@ -323,7 +323,7 @@ export function ItemsPage() {
         cosmeticType,
         item.finish_type || "",
         currentOwnerProfile?.displayName || "",
-        unboxedByProfile?.displayName || "",
+        mintedByProfile?.displayName || "",
         ownershipStatus,
       ]
 
@@ -334,9 +334,9 @@ export function ItemsPage() {
         cosmeticType,
         finishType: item.finish_type || "Unknown",
         currentOwner: currentOwnerProfile,
-        unboxedBy: unboxedByProfile,
-        unboxedAt: item.unboxed_at,
-        unboxedTimestamp: Number.isNaN(unboxedTimestamp) ? -Infinity : unboxedTimestamp,
+        mintedBy: mintedByProfile,
+        mintedAt: item.minted_at,
+        mintedTimestamp: Number.isNaN(mintedTimestamp) ? -Infinity : mintedTimestamp,
         ownershipStatus,
         createdAt: item.created_at,
         searchableText: searchTokens
@@ -411,10 +411,10 @@ export function ItemsPage() {
     const unassignedItems = totalItems - ownedItems
     const ownershipCoverage = totalItems > 0 ? ownedItems / totalItems : 0
 
-    // Calculate recent unboxes (last 7 days)
+    // Calculate recent mints (last 7 days)
     const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-    const recentUnboxes = tableData.filter(
-      (item) => item.unboxedTimestamp > sevenDaysAgo,
+    const recentMints = tableData.filter(
+      (item) => item.mintedTimestamp > sevenDaysAgo,
     ).length
 
     // Calculate unique finish types
@@ -443,9 +443,9 @@ export function ItemsPage() {
         detail: `${numberFormatter.format(ownedItems)} of ${numberFormatter.format(totalItems)} items assigned`,
       },
       {
-        label: "Recent unboxes",
-        value: numberFormatter.format(recentUnboxes),
-        detail: "Items unboxed in the last 7 days",
+        label: "Recent mints",
+        value: numberFormatter.format(recentMints),
+        detail: "Items minted in the last 7 days",
       },
       {
         label: "Unique finish types",
