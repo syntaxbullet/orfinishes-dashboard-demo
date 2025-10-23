@@ -32,7 +32,7 @@ export const navigationGroups: AppNavGroup[] = [
         href: "/",
         icon: LayoutDashboard,
         description:
-          "Key counts for cosmetics, minted items, and ownership churn.",
+          "Here you can find some key insights based on our data",
       },
     ],
   },
@@ -40,11 +40,11 @@ export const navigationGroups: AppNavGroup[] = [
     label: "Records",
     items: [
       {
-        title: "Cosmetics Catalog",
+        title: "Cosmetics",
         href: "/catalog",
         icon: Sparkles,
         description:
-          "Browse every cosmetic definition, finish availability, and sources.",
+          "Browse every cosmetic for which a finish can be obtained",
       },
       {
         title: "Ownership Events",
