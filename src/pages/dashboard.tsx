@@ -10,8 +10,11 @@ import {
 } from "lucide-react"
 
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
+import { PlayerAvatar } from "@/components/player-avatar"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { numberFormatter, percentFormatter, shortDateFormatter, relativeTimeFormatter, parseTimestamp, formatRelativeTime } from "@/lib/formatters"
+import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import {
   fetchCosmetics,
   fetchItemOwnershipSnapshots,
@@ -24,99 +27,8 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const numberFormatter = new Intl.NumberFormat("en-US")
-const percentFormatter = new Intl.NumberFormat("en-US", {
-  style: "percent",
-  minimumFractionDigits: 0,
-  maximumFractionDigits: 1,
-})
-const shortDateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-})
-const relativeTimeFormatter = new Intl.RelativeTimeFormat("en-US", {
-  numeric: "auto",
-})
-
 const mintedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
 
-function normalizeMinecraftUuid(uuid: string | null): string | null {
-  if (!uuid) {
-    return null
-  }
-
-  const normalized = uuid.replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-  return normalized.length === 32 ? normalized : null
-}
-
-function buildPlayerAvatarUrl(player: PlayerRecord): string | null {
-  const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
-  if (!normalizedUuid) {
-    return null
-  }
-
-  const revisionSource =
-    player.avatar_synced_at ??
-    player.profile_synced_at ??
-    player.updated_at ??
-    player.created_at
-
-  let revisionParam: string | null = null
-
-  if (revisionSource) {
-    const timestamp = Date.parse(revisionSource)
-    if (!Number.isNaN(timestamp)) {
-      revisionParam = String(timestamp)
-    }
-  }
-
-  const searchParams = new URLSearchParams({
-    size: "72",
-  })
-
-  if (revisionParam) {
-    searchParams.set("rev", revisionParam)
-  }
-
-  return `/api/minecraft-profile/${normalizedUuid}/avatar?${searchParams.toString()}`
-}
-
-function parseTimestamp(value: string | null | undefined): number | null {
-  if (!value) {
-    return null
-  }
-
-  const timestamp = Date.parse(value)
-  return Number.isNaN(timestamp) ? null : timestamp
-}
-
-function formatRelativeTime(timestamp: number): string {
-  const now = Date.now()
-  const diff = timestamp - now
-  const absolute = Math.abs(diff)
-  const minute = 60 * 1000
-  const hour = 60 * minute
-  const day = 24 * hour
-  const week = 7 * day
-
-  if (absolute < minute) {
-    return relativeTimeFormatter.format(0, "minute")
-  }
-
-  if (absolute < hour) {
-    return relativeTimeFormatter.format(Math.round(diff / minute), "minute")
-  }
-
-  if (absolute < day) {
-    return relativeTimeFormatter.format(Math.round(diff / hour), "hour")
-  }
-
-  if (absolute < week) {
-    return relativeTimeFormatter.format(Math.round(diff / day), "day")
-  }
-
-  return relativeTimeFormatter.format(Math.round(diff / week), "week")
-}
 
 export function DashboardPage() {
   const [cosmetics, setCosmetics] = React.useState<CosmeticRecord[]>([])
@@ -479,18 +391,16 @@ export function DashboardPage() {
 
     return [
       {
-        label: "Catalog breadth",
+        label: "Cosmetics Available",
         icon: PackageSearch,
         value: numberFormatter.format(cosmetics.length),
         detail: `Exclusive share ${exclusiveDetail}`,
       },
       {
-        label: "Minted inventory",
+        label: "Total Items Tracked",
         icon: Sparkles,
         value: numberFormatter.format(finishInsights.totalItems),
-        detail: `${numberFormatter.format(
-          finishInsights.unassignedItems,
-        )} unassigned (${unassignedDetail})`,
+        detail: "Number of individual items we know of",
       },
       {
         label: "Active players",
@@ -498,10 +408,10 @@ export function DashboardPage() {
         value: numberFormatter.format(activationInsights.activeCount),
         detail: `${numberFormatter.format(
           activationInsights.newPlayersLast7,
-        )} joined in 7 days`,
+        )} new players in the last 7 days`,
       },
       {
-        label: "Ownership coverage",
+        label: "Ownership Coverage",
         icon: ShieldCheck,
         value: ownershipCoverage.coverage !== null
           ? percentFormatter.format(ownershipCoverage.coverage)
@@ -513,7 +423,7 @@ export function DashboardPage() {
         )}`,
       },
       {
-        label: "Activation rate",
+        label: "Engagement rate",
         icon: TrendingUp,
         value: activationRate !== null
           ? percentFormatter.format(activationRate)
@@ -522,7 +432,7 @@ export function DashboardPage() {
           activationInsights.engagedNewPlayers,
         )} of ${numberFormatter.format(
           activationInsights.newPlayersLast30,
-        )} new players engaged`,
+        )} players engaged in the last 30 days`,
       },
     ]
   }, [
@@ -579,7 +489,7 @@ export function DashboardPage() {
             ? player.minecraft_uuid.slice(0, 8)
             : playerId.slice(0, 8))
 
-        const avatarUrl = player ? buildPlayerAvatarUrl(player) : null
+        const avatarUrl = player ? buildPlayerAvatarUrl(player, 72) : null
 
         return {
           id: playerId,
@@ -649,14 +559,6 @@ export function DashboardPage() {
     <>
       <section className="space-y-8 px-4 py-6 sm:px-6 lg:px-8">
         <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-semibold tracking-tight text-foreground">
-              Operational intelligence
-            </h1>
-            <p className="max-w-2xl text-sm text-muted-foreground">
-              Correlate catalog growth, player activation, and mint velocity to surface emerging risks and opportunities.
-            </p>
-          </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -667,11 +569,17 @@ export function DashboardPage() {
               disabled={isRefreshing || isLoading}
             >
               {isRefreshing ? (
+                <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Refreshing...
+                </>
               ) : (
+                
+                <>
                 <RefreshCw className="mr-2 h-4 w-4" />
+                Refresh data
+                </>
               )}
-              Refresh data
             </Button>
           </div>
         </header>
@@ -790,12 +698,10 @@ export function DashboardPage() {
                           <span className="flex h-9 w-9 items-center justify-center rounded-full border border-border/80 bg-card text-sm font-semibold text-muted-foreground">
                             #{rank}
                           </span>
-                          {entry.avatarUrl ? (
-                            <img
-                              src={entry.avatarUrl}
-                              alt={`${entry.displayName} avatar`}
-                              className="h-12 w-12 rounded border border-border object-cover"
-                              loading="lazy"
+                          {entry.player ? (
+                            <PlayerAvatar 
+                              profile={createPlayerDisplayInfo(entry.player, 72)} 
+                              size="lg" 
                             />
                           ) : (
                             <div className="flex h-12 w-12 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 bg-muted text-sm font-medium uppercase text-muted-foreground">
