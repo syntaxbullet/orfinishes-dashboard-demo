@@ -3,67 +3,19 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
 
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
+import { PlayerAvatar } from "@/components/player-avatar"
+import { PlayerStatusBadge } from "@/components/player-status-badge"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
-import { cn } from "@/lib/utils"
+import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
+import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import { fetchPlayers, type PlayerRecord } from "@/utils/supabase"
-
-const numberFormatter = new Intl.NumberFormat("en-US")
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-})
 
 const AVATAR_IMAGE_SIZE = 72
 const AVATAR_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
 const AVATAR_SYNC_CONCURRENCY = 4
 
-function normalizeMinecraftUuid(uuid: string | null): string | null {
-  if (!uuid) {
-    return null
-  }
-
-  const normalized = uuid.replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-  return normalized.length === 32 ? normalized : null
-}
-
-function buildPlayerAvatarUrl(player: PlayerRecord): string | null {
-  const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
-  if (!normalizedUuid) {
-    return null
-  }
-
-  const revisionSource =
-    player.avatar_synced_at ??
-    player.profile_synced_at ??
-    player.updated_at ??
-    player.created_at
-
-  let revisionParam: string | null = null
-
-  if (revisionSource) {
-    const timestamp = Date.parse(revisionSource)
-    if (!Number.isNaN(timestamp)) {
-      revisionParam = String(timestamp)
-    }
-  }
-
-  const searchParams = new URLSearchParams({
-    size: String(AVATAR_IMAGE_SIZE),
-  })
-
-  if (revisionParam) {
-    searchParams.set("rev", revisionParam)
-  }
-
-  return `/api/minecraft-profile/${normalizedUuid}/avatar?${searchParams.toString()}`
-}
 
 function shouldRefreshAvatar(player: PlayerRecord): boolean {
   if (!player.avatar_storage_path || !player.avatar_synced_at) {
@@ -118,8 +70,7 @@ function createPlayerColumns(
       header: "Player",
       cell: ({ row }) => {
         const handleClick = () => onPlayerClick(row.original)
-        const initial =
-          row.original.displayName.trim().charAt(0).toUpperCase() || "?"
+        const playerDisplayInfo = createPlayerDisplayInfo(row.original.record, AVATAR_IMAGE_SIZE)
 
         return (
           <button
@@ -128,18 +79,7 @@ function createPlayerColumns(
             className="flex w-full items-center gap-3 rounded-md border border-transparent p-1.5 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             aria-label={`Open profile for ${row.original.displayName}`}
           >
-            {row.original.avatarUrl ? (
-              <img
-                src={row.original.avatarUrl}
-                alt={`${row.original.displayName} avatar`}
-                className="h-9 w-9 rounded border border-border object-cover"
-                loading="lazy"
-              />
-            ) : (
-              <div className="flex h-9 w-9 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 bg-muted text-xs font-medium uppercase text-muted-foreground">
-                {initial}
-              </div>
-            )}
+            <PlayerAvatar profile={playerDisplayInfo} size="md" />
             <div className="space-y-1">
               <p className="font-medium text-foreground">{row.original.displayName}</p>
               <p className="font-mono text-xs text-muted-foreground">
@@ -167,16 +107,7 @@ function createPlayerColumns(
       accessorKey: "status",
       header: "Status",
       cell: ({ row }) => (
-        <span
-          className={cn(
-            "inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium",
-            row.original.isBanned
-              ? "border-destructive/40 bg-destructive/10 text-destructive"
-              : "border-emerald-500/40 bg-emerald-500/10 text-emerald-600",
-          )}
-        >
-          {row.original.status}
-        </span>
+        <PlayerStatusBadge isBanned={row.original.isBanned} />
       ),
       sortingFn: (a, b) =>
         Number(b.original.isBanned) - Number(a.original.isBanned),
@@ -419,7 +350,7 @@ export function PlayersPage() {
         record: player,
         id: player.id,
         displayName,
-        avatarUrl: buildPlayerAvatarUrl(player),
+        avatarUrl: buildPlayerAvatarUrl(player, AVATAR_IMAGE_SIZE),
         minecraftUuid: player.minecraft_uuid,
         status: player.is_banned ? "Banned" : "Active",
         isBanned: Boolean(player.is_banned),
