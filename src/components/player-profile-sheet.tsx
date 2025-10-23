@@ -82,8 +82,8 @@ export function PlayerProfileSheet({
         )
 
         const sortedItems = [...items].sort((left, right) => {
-          const leftDate = left.minted_at ?? left.updated_at ?? left.created_at
-          const rightDate = right.minted_at ?? right.updated_at ?? right.created_at
+          const leftDate = left.unboxed_at ?? left.updated_at ?? left.created_at
+          const rightDate = right.unboxed_at ?? right.updated_at ?? right.created_at
 
           const leftTimestamp = Date.parse(leftDate ?? "")
           const rightTimestamp = Date.parse(rightDate ?? "")
@@ -140,12 +140,12 @@ export function PlayerProfileSheet({
         .map(({ item }) => item.finish_type?.trim().toLowerCase() || null)
         .filter(Boolean),
     ).size
-    const mintedCount = ownedFinishes.filter(
-      ({ item }) => item.minted_by && item.minted_by === player.id,
+    const unboxedCount = ownedFinishes.filter(
+      ({ item }) => item.unboxed_by && item.unboxed_by === player.id,
     ).length
-    const latestMintTimestamp = ownedFinishes.reduce<number | null>(
+    const latestUnboxTimestamp = ownedFinishes.reduce<number | null>(
       (latest, { item }) => {
-        const timestamp = item.minted_at ? Date.parse(item.minted_at) : NaN
+        const timestamp = item.unboxed_at ? Date.parse(item.unboxed_at) : NaN
         if (Number.isNaN(timestamp)) {
           return latest
         }
@@ -178,10 +178,10 @@ export function PlayerProfileSheet({
       },
       {
         label: "Unboxed items",
-        value: numberFormatter.format(mintedCount),
+        value: numberFormatter.format(unboxedCount),
         detail:
-          latestMintTimestamp !== null
-            ? `Latest unbox ${dateFormatter.format(new Date(latestMintTimestamp))}`
+          latestUnboxTimestamp !== null
+            ? `Latest unbox ${dateFormatter.format(new Date(latestUnboxTimestamp))}`
             : "No unboxed items recorded",
         icon: Star,
       },
@@ -285,12 +285,12 @@ export function PlayerProfileSheet({
               {error}
             </p>
           ) : ownedFinishes.length ? (
-            <ul className="mt-4 space-y-3 overflow-y-scroll pr-1">
+            <ul className="mt-4 space-y-3 overflow-y-auto pr-1">
               {ownedFinishes.map(({ item, cosmetic }) => {
                 const ownedSince =
-                  item.minted_at ?? item.updated_at ?? item.created_at ?? null
-                const mintedByPlayer =
-                  player && item.minted_by === player.id && item.minted_at
+                  item.unboxed_at ?? item.updated_at ?? item.created_at ?? null
+                const unboxedByPlayer =
+                  player && item.unboxed_by === player.id && item.unboxed_at
                 let ownedDisplay = "Unknown date"
 
                 if (ownedSince) {
@@ -317,7 +317,7 @@ export function PlayerProfileSheet({
                       <p className="text-xs text-muted-foreground">
                         Owned since {ownedDisplay}
                       </p>
-                      {mintedByPlayer ? (
+                      {unboxedByPlayer ? (
                         <p className="text-xs text-emerald-600">
                           Unboxed directly by this player
                         </p>

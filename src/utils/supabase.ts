@@ -136,10 +136,10 @@ export type ItemRecord = {
   cosmetic: string;
   finish_type: string;
   current_owner: string | null;
-  minted_by: string | null;
+  unboxed_by: string | null;
   created_at: string;
   updated_at: string | null;
-  minted_at: string | null;
+  unboxed_at: string | null;
 };
 
 export type OwnershipAction = "grant" | "transfer" | "unbox" | "revoke";
@@ -273,34 +273,125 @@ export async function fetchItems(
   options: QueryOptions & {
     cosmeticId?: string;
     ownerId?: string | null;
+    forceRefresh?: boolean;
   } = {},
 ): Promise<ItemRecord[]> {
-  let query = supabase
-    .from("items")
-    .select("*")
-    .order("created_at", { ascending: false });
+  const { forceRefresh, ...queryOptions } = options;
+  const cacheKey = buildCacheKey("items", {
+    cosmeticId: queryOptions.cosmeticId ?? null,
+    ownerId: queryOptions.ownerId ?? null,
+    limit: queryOptions.limit ?? null,
+  });
 
-  if (options.cosmeticId) {
-    query = query.eq("cosmetic", options.cosmeticId);
-  }
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const PAGE_SIZE = 1000;
+      const results: ItemRecord[] = [];
+      const totalLimit = typeof queryOptions.limit === "number"
+        ? queryOptions.limit
+        : null;
 
-  if (options.ownerId === null) {
-    query = query.is("current_owner", null);
-  } else if (typeof options.ownerId === "string") {
-    query = query.eq("current_owner", options.ownerId);
-  }
+      let offset = 0;
 
-  if (options.limit) {
-    query = query.limit(options.limit);
-  }
+      while (true) {
+        if (totalLimit !== null && results.length >= totalLimit) {
+          break;
+        }
 
-  const { data, error } = await query.returns<ItemRecord[]>();
+        const remaining =
+          totalLimit !== null ? totalLimit - results.length : PAGE_SIZE;
 
-  if (error) {
-    raise(error);
-  }
+        if (totalLimit !== null && remaining <= 0) {
+          break;
+        }
 
-  return data ?? [];
+        const pageSize = totalLimit !== null
+          ? Math.min(PAGE_SIZE, remaining)
+          : PAGE_SIZE;
+
+        let query = supabase
+          .from("items")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (queryOptions.cosmeticId) {
+          query = query.eq("cosmetic", queryOptions.cosmeticId);
+        }
+
+        if (queryOptions.ownerId === null) {
+          query = query.is("current_owner", null);
+        } else if (typeof queryOptions.ownerId === "string") {
+          query = query.eq("current_owner", queryOptions.ownerId);
+        }
+
+        query = query.range(offset, offset + pageSize - 1);
+
+        const { data, error } = await query.returns<ItemRecord[]>();
+
+        if (error) {
+          raise(error);
+        }
+
+        if (!data || data.length === 0) {
+          break;
+        }
+
+        results.push(...data);
+
+        if (data.length < pageSize) {
+          break;
+        }
+
+        offset += pageSize;
+      }
+
+      return results;
+    },
+    { forceRefresh },
+  );
+}
+
+export async function fetchItemsCount(
+  options: {
+    cosmeticId?: string;
+    ownerId?: string | null;
+    forceRefresh?: boolean;
+  } = {},
+): Promise<number> {
+  const { forceRefresh, ...queryOptions } = options;
+  const cacheKey = buildCacheKey("itemsCount", {
+    cosmeticId: queryOptions.cosmeticId ?? null,
+    ownerId: queryOptions.ownerId ?? null,
+  });
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from("items")
+        .select("*", { count: "exact", head: true });
+
+      if (queryOptions.cosmeticId) {
+        query = query.eq("cosmetic", queryOptions.cosmeticId);
+      }
+
+      if (queryOptions.ownerId === null) {
+        query = query.is("current_owner", null);
+      } else if (typeof queryOptions.ownerId === "string") {
+        query = query.eq("current_owner", queryOptions.ownerId);
+      }
+
+      const { count, error } = await query;
+
+      if (error) {
+        raise(error);
+      }
+
+      return count ?? 0;
+    },
+    { forceRefresh },
+  );
 }
 
 export async function fetchItemsByIds(

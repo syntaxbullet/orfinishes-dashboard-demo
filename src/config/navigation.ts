@@ -5,6 +5,7 @@ import {
   FileText,
   LayoutDashboard,
   LifeBuoy,
+  Package,
   Settings,
   Sparkles,
   Users,
@@ -45,6 +46,13 @@ export const navigationGroups: AppNavGroup[] = [
         icon: Sparkles,
         description:
           "Browse every cosmetic for which a finish can be obtained",
+      },
+      {
+        title: "Items",
+        href: "/items",
+        icon: Package,
+        description:
+          "Browse all minted items with their finish types and ownership",
       },
       {
         title: "Ownership Events",

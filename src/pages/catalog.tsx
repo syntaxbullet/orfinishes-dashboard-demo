@@ -5,6 +5,10 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
+import { StatCard } from "@/components/stat-card"
+import { ErrorDisplay } from "@/components/error-display"
+import { DataTableToolbar, DataTableSearch, DataTableFilter } from "@/components/data-table-toolbar"
+import { useDataLoader } from "@/hooks/use-data-loader"
 import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
 import { fetchCosmetics, type CosmeticRecord } from "@/utils/supabase"
 
@@ -77,31 +81,14 @@ const catalogColumns: ColumnDef<CosmeticRow>[] = [
 
 export function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = React.useState("all")
-  const [cosmetics, setCosmetics] = React.useState<CosmeticRecord[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [error, setError] = React.useState<string | null>(null)
 
-  const loadCosmetics = React.useCallback(async (options?: { forceRefresh?: boolean }) => {
-    const forceRefresh = options?.forceRefresh ?? false
-    setIsLoading(true)
-    setError(null)
-    try {
-      const data = await fetchCosmetics({ forceRefresh })
-      setCosmetics(data)
-    } catch (err) {
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Failed to load cosmetics from Supabase.",
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
+  // Use the data loader hook for managing loading states
+  const dataLoader = useDataLoader(async () => {
+    return await fetchCosmetics()
+  })
 
-  React.useEffect(() => {
-    void loadCosmetics()
-  }, [loadCosmetics])
+  const cosmetics = dataLoader.data || []
+
 
   const tableData = React.useMemo<CosmeticRow[]>(() => {
     return cosmetics.map((cosmetic) => {
@@ -270,28 +257,13 @@ export function CatalogPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         {statCards.map((card) => (
-          <div
+          <StatCard
             key={card.label}
-            className="rounded-lg border border-border bg-card p-6 shadow-sm"
-          >
-            <p className="text-sm font-medium text-muted-foreground">
-              {card.label}
-            </p>
-            {isLoading ? (
-              <div className="mt-2 h-7 w-24 animate-pulse rounded bg-muted" />
-            ) : (
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {card.value}
-              </p>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isLoading ? (
-                <span className="inline-block h-3 w-32 animate-pulse rounded bg-muted" />
-              ) : (
-                card.detail
-              )}
-            </p>
-          </div>
+            label={card.label}
+            value={card.value}
+            detail={card.detail}
+            isLoading={dataLoader.isLoading}
+          />
         ))}
       </div>
 
@@ -307,21 +279,15 @@ export function CatalogPage() {
         </div>
 
         <div className="mt-6">
-          {error ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-6 text-center">
-              <p className="text-sm font-medium text-destructive">
-                Failed to load catalog data.
-          </p>
-          <p className="text-xs text-destructive">{error}</p>
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => loadCosmetics({ forceRefresh: true })}
-          >
-            Retry
-          </Button>
-        </div>
-          ) : isLoading ? (
+          {dataLoader.error ? (
+            <ErrorDisplay
+              error={dataLoader.error}
+              title="Failed to load catalog data."
+              onRetry={() => {
+                void dataLoader.load()
+              }}
+            />
+          ) : dataLoader.isLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading catalog...
@@ -340,53 +306,34 @@ export function CatalogPage() {
                 const isFiltered =
                   Boolean(searchValue) || categoryFilter !== "all"
 
+                const filterOptions = categoryOptions.map(option => ({
+                  value: option,
+                  label: option === "all" ? "All types" : option
+                }))
+
                 return (
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-                      <Input
-                        value={searchValue}
-                        onChange={(event) =>
-                          nameColumn?.setFilterValue(event.target.value)
-                        }
-                        placeholder="Search cosmetics..."
-                        className="w-full sm:max-w-xs"
-                      />
-
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Type
-                        </span>
-                        <select
-                          value={categoryFilter}
-                          onChange={(event) => {
-                            setCategoryFilter(event.target.value)
-                            table.setPageIndex(0)
-                          }}
-                          className="h-9 min-w-[160px] rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        >
-                          {categoryOptions.map((option) => (
-                            <option key={option} value={option}>
-                              {option === "all" ? "All types" : option}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    {isFiltered ? (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          table.resetColumnFilters()
-                          table.setPageIndex(0)
-                          setCategoryFilter("all")
-                        }}
-                      >
-                        Reset filters
-                      </Button>
-                    ) : null}
-                  </div>
+                  <DataTableToolbar
+                    hasFilters={isFiltered}
+                    onReset={() => {
+                      table.resetColumnFilters()
+                      table.setPageIndex(0)
+                      setCategoryFilter("all")
+                    }}
+                  >
+                    <DataTableSearch
+                      column={nameColumn}
+                      placeholder="Search cosmetics..."
+                    />
+                    <DataTableFilter
+                      value={categoryFilter}
+                      onChange={(value) => {
+                        setCategoryFilter(value)
+                        table.setPageIndex(0)
+                      }}
+                      options={filterOptions}
+                      label="Type"
+                    />
+                  </DataTableToolbar>
                 )
               }}
             />

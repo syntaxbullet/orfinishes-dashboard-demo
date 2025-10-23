@@ -7,8 +7,13 @@ import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { PlayerAvatar } from "@/components/player-avatar"
+import { StatCard } from "@/components/stat-card"
+import { ErrorDisplay } from "@/components/error-display"
+import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } from "@/components/data-table-toolbar"
+import { useDataLoader } from "@/hooks/use-data-loader"
+import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
-import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
+import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
 import {
   fetchCosmeticsByIds,
@@ -24,28 +29,13 @@ import {
 
 const PARTICIPANT_AVATAR_SIZE = 40
 
-
-type ParticipantProfile = {
-  id: string
-  displayName: string
-  avatarUrl: string | null
-  fallbackInitial: string
-}
-
 type ItemMetadata = {
   name: string
   finishType: string | null
 }
 
-function buildParticipantProfile(player: PlayerRecord): ParticipantProfile {
-  const playerDisplayInfo = createPlayerDisplayInfo(player, PARTICIPANT_AVATAR_SIZE)
-  
-  return {
-    id: playerDisplayInfo.id,
-    displayName: playerDisplayInfo.displayName,
-    avatarUrl: playerDisplayInfo.avatarUrl,
-    fallbackInitial: playerDisplayInfo.fallbackInitial,
-  }
+function buildParticipantProfile(player: PlayerRecord): PlayerDisplayInfo {
+  return createPlayerDisplayInfo(player, PARTICIPANT_AVATAR_SIZE)
 }
 
 type OwnershipEventRow = {
@@ -56,8 +46,8 @@ type OwnershipEventRow = {
   itemDetail: string
   fromPlayer: string | null
   toPlayer: string | null
-  fromProfile: ParticipantProfile | null
-  toProfile: ParticipantProfile | null
+  fromProfile: PlayerDisplayInfo | null
+  toProfile: PlayerDisplayInfo | null
   occurredAt: string
   occurredDisplay: string
   occurredTimestamp: number
@@ -119,17 +109,9 @@ function getParticipantLabel(
 function ParticipantAvatar({
   profile,
 }: {
-  profile: ParticipantProfile
+  profile: PlayerDisplayInfo
 }) {
-  const playerDisplayInfo = {
-    id: profile.id,
-    displayName: profile.displayName,
-    avatarUrl: profile.avatarUrl,
-    fallbackInitial: profile.fallbackInitial,
-    minecraftUuid: "", // Not needed for this component
-  }
-
-  return <PlayerAvatar profile={playerDisplayInfo} size="sm" className="rounded-full" />
+  return <PlayerAvatar profile={profile} size="sm" className="rounded-full" />
 }
 
 function ParticipantPreview({
@@ -137,9 +119,9 @@ function ParticipantPreview({
   label,
   onSelect,
 }: {
-  profile: ParticipantProfile
+  profile: PlayerDisplayInfo
   label?: string
-  onSelect?: (profile: ParticipantProfile) => void
+  onSelect?: (profile: PlayerDisplayInfo) => void
 }) {
   const content = (
     <>
@@ -172,7 +154,7 @@ function ParticipantPreview({
 }
 
 function createOwnershipEventColumns(
-  onParticipantClick: (profile: ParticipantProfile) => void,
+  onParticipantClick: (profile: PlayerDisplayInfo) => void,
 ): ColumnDef<OwnershipEventRow>[] {
   return [
     {
@@ -293,239 +275,70 @@ const ACTION_OPTIONS: Array<OwnershipAction | "all"> = [
 ]
 
 export function EventsPage() {
-  const [events, setEvents] = React.useState<OwnershipEventRecord[]>([])
-  const [players, setPlayers] = React.useState<PlayerRecord[]>([])
-  const [items, setItems] = React.useState<ItemRecord[]>([])
-  const [cosmetics, setCosmetics] = React.useState<CosmeticRecord[]>([])
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isRefreshing, setIsRefreshing] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
   const [actionFilter, setActionFilter] = React.useState<
     OwnershipAction | "all"
   >("all")
-  const [selectedPlayerId, setSelectedPlayerId] = React.useState<string | null>(null)
-  const [isProfileOpen, setIsProfileOpen] = React.useState(false)
 
-  const loadEvents = React.useCallback(
-    async (options?: {
-      soft?: boolean
-      includeContext?: boolean
-      forceRefresh?: boolean
-    }) => {
-      const includeContext = options?.includeContext ?? false
-      const shouldForceRefresh =
-        options?.forceRefresh ?? options?.soft ?? false
+  // Use the data loader hook for managing loading states
+  const dataLoader = useDataLoader(async () => {
+    const eventsData = await fetchOwnershipEvents({})
+    
+    const uniqueItemIds = Array.from(
+      new Set(
+        eventsData
+          .map((event) => (event.item_id ? event.item_id.trim() : ""))
+          .filter((value) => value.length > 0),
+      ),
+    )
 
-      if (options?.soft) {
-        setIsRefreshing(true)
-      } else {
-        setIsLoading(true)
-      }
+    const [playersData, itemsData] = await Promise.allSettled([
+      fetchPlayers({ includeBanned: true }),
+      uniqueItemIds.length
+        ? fetchItemsByIds(uniqueItemIds)
+        : Promise.resolve([] as ItemRecord[]),
+    ])
 
-      setError(null)
+    const players = playersData.status === "fulfilled" ? playersData.value : []
+    const items = itemsData.status === "fulfilled" ? itemsData.value : []
 
-      try {
-        const eventsData = await fetchOwnershipEvents({
-          forceRefresh: shouldForceRefresh,
-        })
+    let cosmetics: CosmeticRecord[] = []
+    if (items.length) {
+      const uniqueCosmeticIds = Array.from(
+        new Set(
+          items
+            .map((item) => (item.cosmetic ? item.cosmetic.trim() : ""))
+            .filter((value) => value.length > 0),
+        ),
+      )
 
-        let playersData: PlayerRecord[] | null = null
-        let itemsData: ItemRecord[] | null = null
-        let cosmeticsData: CosmeticRecord[] | null = null
-
-        if (includeContext) {
-          const uniqueItemIds = Array.from(
-            new Set(
-              eventsData
-                .map((event) => (event.item_id ? event.item_id.trim() : ""))
-                .filter((value) => value.length > 0),
-            ),
-          )
-
-          const [playersResult, itemsResult] = await Promise.allSettled([
-            fetchPlayers({
-              includeBanned: true,
-              forceRefresh: shouldForceRefresh,
-            }),
-            uniqueItemIds.length
-              ? fetchItemsByIds(uniqueItemIds, {
-                  forceRefresh: shouldForceRefresh,
-                })
-              : Promise.resolve([] as ItemRecord[]),
-          ])
-
-          if (playersResult.status === "fulfilled") {
-            playersData = playersResult.value
-          } else if (playersResult.status === "rejected") {
-            console.error(
-              "Failed to load players for ownership events table",
-              playersResult.reason,
-            )
-          }
-
-          if (itemsResult.status === "fulfilled") {
-            itemsData = itemsResult.value
-          } else if (itemsResult.status === "rejected") {
-            console.error(
-              "Failed to load items for ownership events table",
-              itemsResult.reason,
-            )
-
-            if (uniqueItemIds.length === 0) {
-              itemsData = []
-            }
-          }
-
-          if (itemsData && itemsData.length) {
-            const uniqueCosmeticIds = Array.from(
-              new Set(
-                itemsData
-                  .map((item) => (item.cosmetic ? item.cosmetic.trim() : ""))
-                  .filter((value) => value.length > 0),
-              ),
-            )
-
-            if (uniqueCosmeticIds.length) {
-              try {
-                cosmeticsData = await fetchCosmeticsByIds(uniqueCosmeticIds, {
-                  forceRefresh: shouldForceRefresh,
-                })
-              } catch (cosmeticError) {
-                console.error(
-                  "Failed to load cosmetics for ownership events table",
-                  cosmeticError,
-                )
-                cosmeticsData = null
-              }
-            } else {
-              cosmeticsData = []
-            }
-          } else if (itemsData) {
-            cosmeticsData = []
-          }
+      if (uniqueCosmeticIds.length) {
+        try {
+          cosmetics = await fetchCosmeticsByIds(uniqueCosmeticIds)
+        } catch (cosmeticError) {
+          console.error("Failed to load cosmetics for ownership events table", cosmeticError)
         }
-
-        if (playersData !== null) {
-          setPlayers(playersData)
-        }
-
-        if (itemsData !== null) {
-          setItems(itemsData)
-        }
-
-        if (cosmeticsData !== null) {
-          setCosmetics(cosmeticsData)
-        }
-
-        setEvents(eventsData)
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load ownership events from Supabase.",
-        )
-      } finally {
-        if (options?.soft) {
-          setIsRefreshing(false)
-        } else {
-          setIsLoading(false)
-        }
-      }
-    },
-    [],
-  )
-
-  React.useEffect(() => {
-    void loadEvents({ includeContext: true })
-  }, [loadEvents])
-
-  const playerLookup = React.useMemo(() => {
-    const lookup = new Map<string, ParticipantProfile>()
-
-    for (const player of players) {
-      const profile = buildParticipantProfile(player)
-      lookup.set(player.id, profile)
-
-      const displayName = player.display_name?.trim().toLowerCase()
-      if (displayName) {
-        lookup.set(displayName, profile)
-      }
-
-      const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
-      if (normalizedUuid) {
-        lookup.set(normalizedUuid, profile)
       }
     }
 
-    return lookup
-  }, [players])
+    return { events: eventsData, players, items, cosmetics }
+  })
 
-  const playerRecordLookup = React.useMemo(() => {
-    const lookup = new Map<string, PlayerRecord>()
+  const { events, players, items, cosmetics } = dataLoader.data || { events: [], players: [], items: [], cosmetics: [] }
+  
+  // Use the player profile hook for modal management
+  const playerProfile = usePlayerProfile(players)
 
-    for (const player of players) {
-      lookup.set(player.id, player)
-
-      const displayName = player.display_name?.trim().toLowerCase()
-      if (displayName) {
-        lookup.set(displayName, player)
-      }
-
-      const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
-      if (normalizedUuid) {
-        lookup.set(normalizedUuid, player)
-      }
-    }
-
-    return lookup
-  }, [players])
+  // Create player lookup map using the new utility
+  const playerLookup = React.useMemo(() => createPlayerLookupMap(players), [players])
 
   const handleParticipantClick = React.useCallback(
-    (profile: ParticipantProfile) => {
-      const candidates = new Set<string>()
-      const trimmedId = profile.id.trim()
-      if (trimmedId) {
-        candidates.add(trimmedId)
-      }
-
-      const displayName = profile.displayName.trim().toLowerCase()
-      if (displayName) {
-        candidates.add(displayName)
-      }
-
-      const normalizedUuid = normalizeMinecraftUuid(profile.id)
-      if (normalizedUuid) {
-        candidates.add(normalizedUuid)
-      }
-
-      let resolved: PlayerRecord | undefined
-
-      for (const candidate of candidates) {
-        const match = playerRecordLookup.get(candidate)
-        if (match) {
-          resolved = match
-          break
-        }
-      }
-
-      if (!resolved) {
-        return
-      }
-
-      setSelectedPlayerId(resolved.id)
-      setIsProfileOpen(true)
-    },
-    [playerRecordLookup, setIsProfileOpen, setSelectedPlayerId],
-  )
-
-  const handleProfileOpenChange = React.useCallback(
-    (nextOpen: boolean) => {
-      setIsProfileOpen(nextOpen)
-      if (!nextOpen) {
-        setSelectedPlayerId(null)
+    (profile: PlayerDisplayInfo) => {
+      const player = resolvePlayerByIdentifier(profile.id, playerLookup)
+      if (player) {
+        playerProfile.openProfile(player)
       }
     },
-    [setIsProfileOpen, setSelectedPlayerId],
+    [playerLookup, playerProfile],
   )
 
   const columns = React.useMemo(
@@ -562,36 +375,17 @@ export function EventsPage() {
   }, [items, cosmeticLookup])
 
   const tableData = React.useMemo<OwnershipEventRow[]>(() => {
-    const fallbackProfile = (identifier: string): ParticipantProfile => {
-      const trimmed = identifier.trim()
-      const initial = trimmed.charAt(0).toUpperCase() || "?"
-
-      return {
-        id: trimmed,
-        displayName: trimmed,
-        avatarUrl: null,
-        fallbackInitial: initial,
-      }
-    }
-
-    const resolveParticipant = (identifier: string | null): ParticipantProfile | null => {
+    const resolveParticipant = (identifier: string | null): PlayerDisplayInfo | null => {
       if (!identifier) {
         return null
       }
 
-      const trimmed = identifier.trim()
-      if (!trimmed) {
-        return null
+      const player = resolvePlayerByIdentifier(identifier, playerLookup)
+      if (player) {
+        return buildParticipantProfile(player)
       }
 
-      const normalizedUuid = normalizeMinecraftUuid(trimmed)
-
-      return (
-        playerLookup.get(trimmed) ??
-        playerLookup.get(trimmed.toLowerCase()) ??
-        (normalizedUuid ? playerLookup.get(normalizedUuid) : undefined) ??
-        fallbackProfile(trimmed)
-      )
+      return createFallbackPlayerDisplayInfo(identifier, PARTICIPANT_AVATAR_SIZE)
     }
 
     return events.map((event) => {
@@ -641,15 +435,7 @@ export function EventsPage() {
     })
   }, [events, itemLookup, playerLookup])
 
-  const selectedPlayer = React.useMemo(
-    () =>
-      selectedPlayerId
-        ? playerRecordLookup.get(selectedPlayerId) ?? null
-        : null,
-    [playerRecordLookup, selectedPlayerId],
-  )
-
-  const isProfileSheetOpen = Boolean(selectedPlayer) && isProfileOpen
+  const isProfileSheetOpen = Boolean(playerProfile.selectedPlayer) && playerProfile.isProfileOpen
 
   const filteredEvents = React.useMemo(() => {
     if (actionFilter === "all") {
@@ -659,7 +445,7 @@ export function EventsPage() {
     return tableData.filter((event) => event.action === actionFilter)
   }, [actionFilter, tableData])
 
-  const isBusy = isLoading || isRefreshing
+  const isBusy = dataLoader.isLoading || dataLoader.isRefreshing
 
   const statCards = React.useMemo(() => {
     if (!tableData.length) {
@@ -767,28 +553,13 @@ export function EventsPage() {
 
       <div className="grid gap-4 md:grid-cols-3">
         {statCards.map((card) => (
-          <div
+          <StatCard
             key={card.label}
-            className="rounded-lg border border-border bg-card p-6 shadow-sm"
-          >
-            <p className="text-sm font-medium text-muted-foreground">
-              {card.label}
-            </p>
-            {isBusy ? (
-              <div className="mt-2 h-7 w-24 animate-pulse rounded bg-muted" />
-            ) : (
-              <p className="mt-2 text-2xl font-semibold text-foreground">
-                {card.value}
-              </p>
-            )}
-            <p className="mt-1 text-xs text-muted-foreground">
-              {isBusy ? (
-                <span className="inline-block h-3 w-32 animate-pulse rounded bg-muted" />
-              ) : (
-                card.detail
-              )}
-            </p>
-          </div>
+            label={card.label}
+            value={card.value}
+            detail={card.detail}
+            isLoading={isBusy}
+          />
         ))}
       </div>
 
@@ -801,26 +572,18 @@ export function EventsPage() {
         </div>
 
         <div className="mt-6">
-          {error ? (
-            <div className="flex flex-col items-center justify-center gap-3 rounded-md border border-destructive/40 bg-destructive/10 p-6 text-center">
-              <p className="text-sm font-medium text-destructive">
-                Failed to load ownership events.
-              </p>
-              <p className="text-xs text-destructive">{error}</p>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() =>
-                  loadEvents({ includeContext: true, forceRefresh: true })
-                }
-              >
-                Retry
-              </Button>
-            </div>
+          {dataLoader.error ? (
+            <ErrorDisplay
+              error={dataLoader.error}
+              title="Failed to load ownership events."
+              onRetry={() => {
+                void dataLoader.load()
+              }}
+            />
           ) : isBusy ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {isRefreshing ? "Refreshing ownership events..." : "Loading ownership events..."}
+              {dataLoader.isRefreshing ? "Refreshing ownership events..." : "Loading ownership events..."}
             </div>
           ) : (
             <DataTable
@@ -836,80 +599,40 @@ export function EventsPage() {
                 const isFiltered =
                   Boolean(searchValue.trim()) || actionFilter !== "all"
 
+                const actionOptions = ACTION_OPTIONS.map(option => ({
+                  value: option,
+                  label: option === "all" ? "All actions" : ACTION_LABELS[option]
+                }))
+
                 return (
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-                    <div className="flex flex-1 flex-col gap-3 sm:flex-row sm:items-center">
-                      <Input
-                        value={searchValue}
-                        onChange={(event) =>
-                          itemColumn?.setFilterValue(event.target.value)
-                        }
-                        placeholder="Search events..."
-                        className="w-full sm:max-w-xs"
-                      />
-
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                          Action
-                        </span>
-                        <select
-                          value={actionFilter}
-                          onChange={(event) => {
-                            const value = event.target.value as OwnershipAction | "all"
-                            setActionFilter(value)
-                            table.setPageIndex(0)
-                          }}
-                          className="h-9 min-w-[160px] rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
-                        >
-                          {ACTION_OPTIONS.map((option) => (
-                            <option key={option} value={option}>
-                              {option === "all"
-                                ? "All actions"
-                                : ACTION_LABELS[option]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 self-start lg:self-auto">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="secondary"
-                        onClick={() => {
-                          void loadEvents({
-                            soft: true,
-                            includeContext: true,
-                          })
-                        }}
-                        disabled={isRefreshing}
-                      >
-                        {isRefreshing ? (
-                          <>
-                            <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
-                            Refreshing
-                          </>
-                        ) : (
-                          "Refresh"
-                        )}
-                      </Button>
-
-                      {isFiltered ? (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            table.resetColumnFilters()
-                            table.setPageIndex(0)
-                            setActionFilter("all")
-                          }}
-                        >
-                          Reset filters
-                        </Button>
-                      ) : null}
-                    </div>
-                  </div>
+                  <DataTableToolbar
+                    hasFilters={isFiltered}
+                    onReset={() => {
+                      table.resetColumnFilters()
+                      table.setPageIndex(0)
+                      setActionFilter("all")
+                    }}
+                  >
+                    <DataTableSearch
+                      column={itemColumn}
+                      placeholder="Search events..."
+                    />
+                    <DataTableFilter
+                      value={actionFilter}
+                      onChange={(value) => {
+                        setActionFilter(value as OwnershipAction | "all")
+                        table.setPageIndex(0)
+                      }}
+                      options={actionOptions}
+                      label="Action"
+                    />
+                    <DataTableRefresh
+                      isRefreshing={dataLoader.isRefreshing}
+                      onRefresh={() => {
+                        void dataLoader.refresh()
+                      }}
+                    />
+                  </DataTableToolbar>
                 )
               }}
             />
@@ -919,9 +642,9 @@ export function EventsPage() {
     </section>
     
       <PlayerProfileSheet
-        player={selectedPlayer}
-        open={isProfileSheetOpen}
-        onOpenChange={handleProfileOpenChange}
+        player={playerProfile.selectedPlayer}
+        open={playerProfile.isProfileOpen}
+        onOpenChange={playerProfile.handleOpenChange}
       />
     </>
   )

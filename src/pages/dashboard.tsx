@@ -11,10 +11,15 @@ import {
 
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { PlayerAvatar } from "@/components/player-avatar"
+import { StatCardWithIcon } from "@/components/stat-card"
+import { ErrorDisplay } from "@/components/error-display"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { useDataLoader } from "@/hooks/use-data-loader"
+import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, percentFormatter, shortDateFormatter, relativeTimeFormatter, parseTimestamp, formatRelativeTime } from "@/lib/formatters"
 import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
+import { timeWindows, isWithinTimeWindow } from "@/lib/time-utils"
 import {
   fetchCosmetics,
   fetchItemOwnershipSnapshots,
@@ -27,70 +32,29 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const mintedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
+const unboxedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
 
 
 export function DashboardPage() {
-  const [cosmetics, setCosmetics] = React.useState<CosmeticRecord[]>([])
-  const [players, setPlayers] = React.useState<PlayerRecord[]>([])
-  const [events, setEvents] = React.useState<OwnershipEventRecord[]>([])
-  const [snapshots, setSnapshots] = React.useState<ItemOwnershipSnapshot[]>([])
+  // Use the data loader hook for managing loading states
+  const dataLoader = useDataLoader(async () => {
+    const [cosmeticsData, playersData, snapshotsData, eventsData] = await Promise.all([
+      fetchCosmetics(),
+      fetchPlayers({ includeBanned: true }),
+      fetchItemOwnershipSnapshots(),
+      fetchOwnershipEvents({ limit: 400 }),
+    ])
+    return { cosmetics: cosmeticsData, players: playersData, snapshots: snapshotsData, events: eventsData }
+  })
 
-  const [isLoading, setIsLoading] = React.useState(true)
-  const [isRefreshing, setIsRefreshing] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
-  const [selectedPlayer, setSelectedPlayer] = React.useState<PlayerRecord | null>(null)
-  const [isProfileSheetOpen, setIsProfileSheetOpen] = React.useState(false)
+  const { cosmetics, players, events, snapshots } = dataLoader.data || { cosmetics: [], players: [], events: [], snapshots: [] }
+  
+  // Use the player profile hook for modal management
+  const playerProfile = usePlayerProfile(players)
 
-  const loadDashboardData = React.useCallback(
-    async (options?: { soft?: boolean }) => {
-      const soft = Boolean(options?.soft)
-
-      if (soft) {
-        setIsRefreshing(true)
-      } else {
-        setIsLoading(true)
-      }
-
-      setError(null)
-
-      try {
-        const [
-          cosmeticsData,
-          playersData,
-          snapshotsData,
-          eventsData,
-        ] = await Promise.all([
-          fetchCosmetics(),
-          fetchPlayers({ includeBanned: true }),
-          fetchItemOwnershipSnapshots(),
-          fetchOwnershipEvents({ limit: 400 }),
-        ])
-
-        setCosmetics(cosmeticsData)
-        setPlayers(playersData)
-        setSnapshots(snapshotsData)
-        setEvents(eventsData)
-      } catch (err) {
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Failed to load dashboard data from Supabase.",
-        )
-      } finally {
-        if (soft) {
-          setIsRefreshing(false)
-        } else {
-          setIsLoading(false)
-        }
-      }
-    },
-    [],
-  )
-
-  React.useEffect(() => {
-    void loadDashboardData()
-  }, [loadDashboardData])
+  // Time window calculations using the new utility
+  const sevenDaysAgo = timeWindows.last7Days()
+  const thirtyDaysAgo = timeWindows.last30Days()
 
   const playersById = React.useMemo(() => {
     const lookup = new Map<string, PlayerRecord>()
@@ -119,9 +83,6 @@ export function DashboardPage() {
     }
 
     const now = Date.now()
-    const day = 24 * 60 * 60 * 1000
-    const sevenDaysAgo = now - day * 7
-    const thirtyDaysAgo = now - day * 30
 
     let newPlayersLast30 = 0
     let newPlayersLast7 = 0
@@ -143,14 +104,14 @@ export function DashboardPage() {
         continue
       }
 
-      if (createdAt >= thirtyDaysAgo) {
+      if (isWithinTimeWindow(createdAt, thirtyDaysAgo)) {
         newPlayersLast30 += 1
         if (participants.has(player.id)) {
           engagedNewPlayers += 1
         }
       }
 
-      if (createdAt >= sevenDaysAgo) {
+      if (isWithinTimeWindow(createdAt, sevenDaysAgo)) {
         newPlayersLast7 += 1
       }
     }
@@ -171,10 +132,8 @@ export function DashboardPage() {
   }, [events, players])
 
   const eventAnalytics = React.useMemo(() => {
-    const dayMs = 24 * 60 * 60 * 1000
     const now = Date.now()
-    const sevenDaysAgo = now - dayMs * 7
-    const fourteenDaysAgo = now - dayMs * 14
+    const fourteenDaysAgo = timeWindows.last14Days()
 
     let totalLast7 = 0
     let mintedLast7 = 0
@@ -191,18 +150,18 @@ export function DashboardPage() {
         continue
       }
 
-      if (timestamp >= sevenDaysAgo) {
+      if (isWithinTimeWindow(timestamp, sevenDaysAgo)) {
         totalLast7 += 1
-        if (mintedActionSet.has(event.action)) {
+        if (unboxedActionSet.has(event.action)) {
           mintedLast7 += 1
         } else if (event.action === "transfer") {
           transferLast7 += 1
         } else if (event.action === "revoke") {
           revokeLast7 += 1
         }
-      } else if (timestamp >= fourteenDaysAgo) {
+      } else if (isWithinTimeWindow(timestamp, fourteenDaysAgo)) {
         totalPrev7 += 1
-        if (mintedActionSet.has(event.action)) {
+        if (unboxedActionSet.has(event.action)) {
           mintedPrev7 += 1
         } else if (event.action === "transfer") {
           transferPrev7 += 1
@@ -267,7 +226,7 @@ export function DashboardPage() {
 
   const finishInsights = React.useMemo(() => {
     const totalItems = snapshots.length
-    const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const monthAgo = timeWindows.last30Days()
     const finishMap = new Map<
       string,
       { count: number; fresh: number }
@@ -281,7 +240,7 @@ export function DashboardPage() {
       entry.count += 1
 
       const firstUnbox = parseTimestamp(snapshot.first_unbox_occurred_at)
-      if (firstUnbox !== null && firstUnbox >= monthAgo) {
+      if (firstUnbox !== null && isWithinTimeWindow(firstUnbox, monthAgo)) {
         entry.fresh += 1
       }
 
@@ -329,7 +288,7 @@ export function DashboardPage() {
       ? exclusiveCosmetics.length / cosmetics.length
       : 0
 
-    const monthAgo = Date.now() - 30 * 24 * 60 * 60 * 1000
+    const monthAgo = timeWindows.last30Days()
     const latestEntries = cosmetics
       .map((cosmetic) => {
         const lastTouched = parseTimestamp(cosmetic.updated_at) ??
@@ -350,7 +309,7 @@ export function DashboardPage() {
     const freshExclusiveCount = exclusiveCosmetics.filter((cosmetic) => {
       const lastTouched = parseTimestamp(cosmetic.updated_at) ??
         parseTimestamp(cosmetic.created_at)
-      return lastTouched !== null && lastTouched >= monthAgo
+      return lastTouched !== null && isWithinTimeWindow(lastTouched, monthAgo)
     }).length
 
     const typeMap = new Map<string, number>()
@@ -529,19 +488,12 @@ export function DashboardPage() {
     if (!player) {
       return
     }
+    playerProfile.openProfile(player)
+  }, [playerProfile])
 
-    setSelectedPlayer(player)
-    setIsProfileSheetOpen(true)
-  }, [])
+  const handleProfileSheetChange = playerProfile.handleOpenChange
 
-  const handleProfileSheetChange = React.useCallback((open: boolean) => {
-    setIsProfileSheetOpen(open)
-    if (!open) {
-      setSelectedPlayer(null)
-    }
-  }, [])
-
-  const isEmptyState = !isLoading &&
+  const isEmptyState = !dataLoader.isLoading &&
     cosmetics.length === 0 &&
     players.length === 0 &&
     events.length === 0 &&
@@ -564,17 +516,16 @@ export function DashboardPage() {
               size="sm"
               variant="outline"
               onClick={() => {
-                void loadDashboardData({ soft: true })
+                void dataLoader.refresh()
               }}
-              disabled={isRefreshing || isLoading}
+              disabled={dataLoader.isRefreshing || dataLoader.isLoading}
             >
-              {isRefreshing ? (
+              {dataLoader.isRefreshing ? (
                 <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 Refreshing...
                 </>
               ) : (
-                
                 <>
                 <RefreshCw className="mr-2 h-4 w-4" />
                 Refresh data
@@ -584,22 +535,16 @@ export function DashboardPage() {
           </div>
         </header>
 
-        {error ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-            <span>{error}</span>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                void loadDashboardData()
-              }}
-            >
-              Try again
-            </Button>
-          </div>
+        {dataLoader.error ? (
+          <ErrorDisplay
+            error={dataLoader.error}
+            onRetry={() => {
+              void dataLoader.load()
+            }}
+          />
         ) : null}
 
-        {isLoading ? (
+        {dataLoader.isLoading ? (
         <>
           {renderOverviewSkeleton()}
           <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
@@ -624,27 +569,14 @@ export function DashboardPage() {
         <>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {overviewMetrics.map((metric) => (
-              <div
+              <StatCardWithIcon
                 key={metric.label}
-                className="relative overflow-hidden rounded-xl border border-border/60 bg-card p-5 shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <span className="flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                    <metric.icon className="size-5" />
-                  </span>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-                      {metric.label}
-                    </p>
-                    <p className="mt-1 text-2xl font-semibold text-foreground">
-                      {metric.value}
-                    </p>
-                  </div>
-                </div>
-                <p className="mt-4 text-xs text-muted-foreground">
-                  {metric.detail}
-                </p>
-              </div>
+                label={metric.label}
+                value={metric.value}
+                detail={metric.detail}
+                icon={metric.icon}
+                isLoading={dataLoader.isLoading}
+              />
             ))}
           </div>
           <div className="flex flex-col gap-6 rounded-xl border border-border/60 bg-card p-6 shadow-sm">
@@ -739,9 +671,9 @@ export function DashboardPage() {
         )}
       </section>
       <PlayerProfileSheet
-        player={selectedPlayer}
-        open={isProfileSheetOpen}
-        onOpenChange={handleProfileSheetChange}
+        player={playerProfile.selectedPlayer}
+        open={playerProfile.isProfileOpen}
+        onOpenChange={playerProfile.handleOpenChange}
       />
     </>
   )

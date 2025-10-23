@@ -93,3 +93,88 @@ export function createPlayerDisplayInfo(player: PlayerRecord, avatarSize: number
     minecraftUuid: player.minecraft_uuid,
   }
 }
+
+/**
+ * Creates a lookup map for players by various identifiers.
+ * Supports lookup by ID, display name (case-insensitive), and normalized UUID.
+ */
+export function createPlayerLookupMap(players: PlayerRecord[]): Map<string, PlayerRecord> {
+  const lookup = new Map<string, PlayerRecord>()
+
+  for (const player of players) {
+    // Add by ID
+    lookup.set(player.id, player)
+
+    // Add by display name (case-insensitive)
+    const displayName = player.display_name?.trim().toLowerCase()
+    if (displayName) {
+      lookup.set(displayName, player)
+    }
+
+    // Add by normalized UUID
+    const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
+    if (normalizedUuid) {
+      lookup.set(normalizedUuid, player)
+    }
+  }
+
+  return lookup
+}
+
+/**
+ * Resolves a player by various identifier types (ID, display name, UUID).
+ * Returns the first matching player or null if none found.
+ */
+export function resolvePlayerByIdentifier(
+  identifier: string | null,
+  playerLookup: Map<string, PlayerRecord>
+): PlayerRecord | null {
+  if (!identifier) {
+    return null
+  }
+
+  const trimmed = identifier.trim()
+  if (!trimmed) {
+    return null
+  }
+
+  // Try direct lookup first
+  const directMatch = playerLookup.get(trimmed)
+  if (directMatch) {
+    return directMatch
+  }
+
+  // Try case-insensitive display name lookup
+  const caseInsensitiveMatch = playerLookup.get(trimmed.toLowerCase())
+  if (caseInsensitiveMatch) {
+    return caseInsensitiveMatch
+  }
+
+  // Try normalized UUID lookup
+  const normalizedUuid = normalizeMinecraftUuid(trimmed)
+  if (normalizedUuid) {
+    const uuidMatch = playerLookup.get(normalizedUuid)
+    if (uuidMatch) {
+      return uuidMatch
+    }
+  }
+
+  return null
+}
+
+/**
+ * Creates a fallback player display info for unknown players.
+ * Used when player data is not available but we need to show something.
+ */
+export function createFallbackPlayerDisplayInfo(identifier: string, avatarSize: number = 64): PlayerDisplayInfo {
+  const trimmed = identifier.trim()
+  const initial = trimmed.charAt(0).toUpperCase() || "?"
+
+  return {
+    id: trimmed,
+    displayName: trimmed,
+    avatarUrl: null,
+    fallbackInitial: initial,
+    minecraftUuid: "",
+  }
+}
