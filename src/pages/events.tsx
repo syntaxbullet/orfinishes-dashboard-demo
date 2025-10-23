@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
+import { PlayerAvatar } from "@/components/player-avatar"
+import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
+import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
 import {
   fetchCosmeticsByIds,
@@ -19,54 +22,8 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const numberFormatter = new Intl.NumberFormat("en-US")
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-})
-
 const PARTICIPANT_AVATAR_SIZE = 40
 
-function normalizeMinecraftUuid(uuid: string | null): string | null {
-  if (!uuid) {
-    return null
-  }
-
-  const normalized = uuid.replace(/[^a-fA-F0-9]/g, "").toLowerCase()
-  return normalized.length === 32 ? normalized : null
-}
-
-function buildPlayerAvatarUrl(player: PlayerRecord): string | null {
-  const normalizedUuid = normalizeMinecraftUuid(player.minecraft_uuid)
-  if (!normalizedUuid) {
-    return null
-  }
-
-  const revisionSource =
-    player.avatar_synced_at ??
-    player.profile_synced_at ??
-    player.updated_at ??
-    player.created_at
-
-  let revisionParam: string | null = null
-
-  if (revisionSource) {
-    const timestamp = Date.parse(revisionSource)
-    if (!Number.isNaN(timestamp)) {
-      revisionParam = String(timestamp)
-    }
-  }
-
-  const searchParams = new URLSearchParams({
-    size: String(PARTICIPANT_AVATAR_SIZE),
-  })
-
-  if (revisionParam) {
-    searchParams.set("rev", revisionParam)
-  }
-
-  return `/api/minecraft-profile/${normalizedUuid}/avatar?${searchParams.toString()}`
-}
 
 type ParticipantProfile = {
   id: string
@@ -81,14 +38,13 @@ type ItemMetadata = {
 }
 
 function buildParticipantProfile(player: PlayerRecord): ParticipantProfile {
-  const displayName = player.display_name?.trim() || "Unknown player"
-  const fallbackInitial = displayName.trim().charAt(0).toUpperCase() || "?"
-
+  const playerDisplayInfo = createPlayerDisplayInfo(player, PARTICIPANT_AVATAR_SIZE)
+  
   return {
-    id: player.id,
-    displayName,
-    avatarUrl: buildPlayerAvatarUrl(player),
-    fallbackInitial,
+    id: playerDisplayInfo.id,
+    displayName: playerDisplayInfo.displayName,
+    avatarUrl: playerDisplayInfo.avatarUrl,
+    fallbackInitial: playerDisplayInfo.fallbackInitial,
   }
 }
 
@@ -165,22 +121,15 @@ function ParticipantAvatar({
 }: {
   profile: ParticipantProfile
 }) {
-  if (profile.avatarUrl) {
-    return (
-      <img
-        src={profile.avatarUrl}
-        alt={`${profile.displayName} avatar`}
-        className="h-8 w-8 rounded-full border border-border object-cover"
-        loading="lazy"
-      />
-    )
+  const playerDisplayInfo = {
+    id: profile.id,
+    displayName: profile.displayName,
+    avatarUrl: profile.avatarUrl,
+    fallbackInitial: profile.fallbackInitial,
+    minecraftUuid: "", // Not needed for this component
   }
 
-  return (
-    <div className="flex h-8 w-8 items-center justify-center rounded-full border border-dashed border-muted-foreground/40 bg-muted text-xs font-medium uppercase text-muted-foreground">
-      {profile.fallbackInitial}
-    </div>
-  )
+  return <PlayerAvatar profile={playerDisplayInfo} size="sm" className="rounded-full" />
 }
 
 function ParticipantPreview({
