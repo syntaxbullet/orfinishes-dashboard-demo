@@ -5,18 +5,8 @@ import { Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
 import { Input } from "@/components/ui/input"
+import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
 import { fetchCosmetics, type CosmeticRecord } from "@/utils/supabase"
-
-const numberFormatter = new Intl.NumberFormat("en-US")
-const dateFormatter = new Intl.DateTimeFormat("en-US", {
-  month: "short",
-  day: "numeric",
-  year: "numeric",
-})
-const dateTimeFormatter = new Intl.DateTimeFormat("en-US", {
-  dateStyle: "medium",
-  timeStyle: "short",
-})
 
 type CosmeticRow = {
   id: string
