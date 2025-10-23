@@ -1,8 +1,8 @@
 const procedures = [
   {
-    title: "Mint incident response",
+    title: "Unbox incident response",
     detail:
-      "Pause `mint_item` calls, review queued events, and notify catalog owners.",
+      "Pause `unbox_item` calls, review queued events, and notify catalog owners.",
   },
   {
     title: "Transfer dispute workflow",
@@ -24,7 +24,7 @@ export function RunbookPage() {
           Operations Runbook
         </h1>
         <p className="text-sm text-muted-foreground">
-          Document the human procedures needed to keep minting, ownership, and
+          Document the human procedures needed to keep unboxing, ownership, and
           catalog data healthy.
         </p>
       </header>

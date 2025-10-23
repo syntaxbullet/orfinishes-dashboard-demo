@@ -217,14 +217,14 @@ export function ItemDetailSheet({
     return player ? createPlayerDisplayInfo(player, 40) : null
   }, [item?.current_owner, players])
 
-  const mintedBy = React.useMemo(() => {
-    if (!item?.minted_by) {
+  const unboxedBy = React.useMemo(() => {
+    if (!item?.unboxed_by) {
       return null
     }
 
-    const player = resolvePlayerByIdentifier(item.minted_by, createPlayerLookupMap(players))
+    const player = resolvePlayerByIdentifier(item.unboxed_by, createPlayerLookupMap(players))
     return player ? createPlayerDisplayInfo(player, 40) : null
-  }, [item?.minted_by, players])
+  }, [item?.unboxed_by, players])
 
   return (
     <>
@@ -317,24 +317,24 @@ export function ItemDetailSheet({
                 )}
               </div>
 
-              {mintedBy && (
+              {unboxedBy && (
                 <div>
-                  <h3 className="text-sm font-semibold text-foreground">Minted By</h3>
+                  <h3 className="text-sm font-semibold text-foreground">Unboxed By</h3>
                   <button
                     type="button"
                     onClick={() => {
-                      const player = resolvePlayerByIdentifier(mintedBy.id, createPlayerLookupMap(players))
+                      const player = resolvePlayerByIdentifier(unboxedBy.id, createPlayerLookupMap(players))
                       if (player) {
                         handlePlayerClick(player)
                       }
                     }}
                     className="mt-2 flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
-                    aria-label={`Open profile for ${mintedBy.displayName}`}
+                    aria-label={`Open profile for ${unboxedBy.displayName}`}
                   >
-                    <PlayerAvatar profile={mintedBy} size="md" />
+                    <PlayerAvatar profile={unboxedBy} size="md" />
                     <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">{mintedBy.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{mintedBy.id}</p>
+                      <p className="text-sm font-medium text-foreground">{unboxedBy.displayName}</p>
+                      <p className="text-xs text-muted-foreground">{unboxedBy.id}</p>
                     </div>
                   </button>
                 </div>

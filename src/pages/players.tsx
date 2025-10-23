@@ -446,7 +446,7 @@ export function PlayersPage() {
           Players
         </h1>
         <p className="text-sm text-muted-foreground">
-          Explore player profiles, minting eligibility, and moderation status
+          Explore player profiles, unboxing eligibility, and moderation status
           pulled from `public.players`.
         </p>
       </header>

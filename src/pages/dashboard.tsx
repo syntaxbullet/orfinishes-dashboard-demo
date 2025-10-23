@@ -7,6 +7,9 @@ import {
   Sparkles,
   TrendingUp,
   Users2,
+  Activity,
+  BarChart3,
+  PieChart as PieChartIcon,
 } from "lucide-react"
 
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
@@ -15,11 +18,20 @@ import { StatCardWithIcon } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import { LineChart, BarChart, AreaChart, PieChart } from "@/components/charts"
+import { TrendIndicator } from "@/components/trend-indicator"
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, percentFormatter, shortDateFormatter, relativeTimeFormatter, parseTimestamp, formatRelativeTime } from "@/lib/formatters"
 import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import { timeWindows, isWithinTimeWindow } from "@/lib/time-utils"
+import { 
+  calculateTrend, 
+  generateTimeSeriesData, 
+  generatePlayerGrowthData, 
+  generateFinishTypeDistribution,
+  type TrendData 
+} from "@/lib/analytics-utils"
 import {
   fetchCosmetics,
   fetchItemOwnershipSnapshots,
@@ -32,7 +44,7 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const mintedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
+const unboxedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
 
 
 export function DashboardPage() {
@@ -136,11 +148,11 @@ export function DashboardPage() {
     const fourteenDaysAgo = timeWindows.last14Days()
 
     let totalLast7 = 0
-    let mintedLast7 = 0
+    let unboxedLast7 = 0
     let transferLast7 = 0
     let revokeLast7 = 0
     let totalPrev7 = 0
-    let mintedPrev7 = 0
+    let unboxedPrev7 = 0
     let transferPrev7 = 0
     let revokePrev7 = 0
 
@@ -152,8 +164,8 @@ export function DashboardPage() {
 
       if (isWithinTimeWindow(timestamp, sevenDaysAgo)) {
         totalLast7 += 1
-        if (mintedActionSet.has(event.action)) {
-          mintedLast7 += 1
+        if (unboxedActionSet.has(event.action)) {
+          unboxedLast7 += 1
         } else if (event.action === "transfer") {
           transferLast7 += 1
         } else if (event.action === "revoke") {
@@ -161,8 +173,8 @@ export function DashboardPage() {
         }
       } else if (isWithinTimeWindow(timestamp, fourteenDaysAgo)) {
         totalPrev7 += 1
-        if (mintedActionSet.has(event.action)) {
-          mintedPrev7 += 1
+        if (unboxedActionSet.has(event.action)) {
+          unboxedPrev7 += 1
         } else if (event.action === "transfer") {
           transferPrev7 += 1
         } else if (event.action === "revoke") {
@@ -173,11 +185,11 @@ export function DashboardPage() {
 
     return {
       totalLast7,
-      mintedLast7,
+      unboxedLast7,
       transferLast7,
       revokeLast7,
       totalPrev7,
-      mintedPrev7,
+      unboxedPrev7,
       transferPrev7,
       revokePrev7,
     }
@@ -188,10 +200,10 @@ export function DashboardPage() {
 
     return [
       {
-        key: "minted",
-        label: "Minted",
-        value: eventAnalytics.mintedLast7,
-        previous: eventAnalytics.mintedPrev7,
+        key: "unboxed",
+        label: "Unboxed",
+        value: eventAnalytics.unboxedLast7,
+        previous: eventAnalytics.unboxedPrev7,
       },
       {
         key: "transfer",
@@ -213,13 +225,13 @@ export function DashboardPage() {
 
   const flowSummary = React.useMemo(() => {
     const totalDelta = eventAnalytics.totalLast7 - eventAnalytics.totalPrev7
-    const mintedShare = eventAnalytics.totalLast7 > 0
-      ? eventAnalytics.mintedLast7 / eventAnalytics.totalLast7
+    const unboxedShare = eventAnalytics.totalLast7 > 0
+      ? eventAnalytics.unboxedLast7 / eventAnalytics.totalLast7
       : null
 
     return {
       totalDelta,
-      mintedShare,
+      unboxedShare,
       hasBaseline: eventAnalytics.totalPrev7 > 0,
     }
   }, [eventAnalytics])
@@ -484,6 +496,43 @@ export function DashboardPage() {
     snapshots,
   ])
 
+  // Analytics data processing
+  const analyticsData = React.useMemo(() => {
+    const last30Days = timeWindows.last30Days()
+    const last7Days = timeWindows.last7Days()
+    const last14Days = timeWindows.last14Days()
+
+    // Generate time series data for events
+    const eventTimeSeries = generateTimeSeriesData(events, { start: last30Days, end: Date.now() }, "day")
+    const playerGrowthData = generatePlayerGrowthData(players, { start: last30Days, end: Date.now() }, "day")
+    const finishDistribution = generateFinishTypeDistribution(snapshots)
+
+    // Calculate trends
+    const totalEventsTrend = calculateTrend(
+      eventAnalytics.totalLast7,
+      eventAnalytics.totalPrev7
+    )
+    const unboxedTrend = calculateTrend(
+      eventAnalytics.unboxedLast7,
+      eventAnalytics.unboxedPrev7
+    )
+    const playerGrowthTrend = calculateTrend(
+      activationInsights.newPlayersLast7,
+      activationInsights.newPlayersLast30 - activationInsights.newPlayersLast7
+    )
+
+    return {
+      eventTimeSeries,
+      playerGrowthData,
+      finishDistribution,
+      trends: {
+        totalEvents: totalEventsTrend,
+        unboxed: unboxedTrend,
+        playerGrowth: playerGrowthTrend,
+      }
+    }
+  }, [events, players, snapshots, eventAnalytics, activationInsights])
+
   const handlePlayerSelect = React.useCallback((player: PlayerRecord | null) => {
     if (!player) {
       return
@@ -510,7 +559,11 @@ export function DashboardPage() {
   return (
     <>
       <section className="space-y-8 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <header className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-2">
+            <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+            <p className="text-muted-foreground">Comprehensive overview of your ORFinishes system</p>
+          </div>
           <div className="flex items-center gap-2">
             <Button
               size="sm"
@@ -519,6 +572,7 @@ export function DashboardPage() {
                 void dataLoader.refresh()
               }}
               disabled={dataLoader.isRefreshing || dataLoader.isLoading}
+              className="transition-all hover:scale-105"
             >
               {dataLoader.isRefreshing ? (
                 <>
@@ -547,12 +601,37 @@ export function DashboardPage() {
         {dataLoader.isLoading ? (
         <>
           {renderOverviewSkeleton()}
-          <div className="grid gap-4 lg:grid-cols-[2fr,1fr]">
-            <Skeleton className="h-72 rounded-xl border border-border/60" />
-            <Skeleton className="h-72 rounded-xl border border-border/60" />
+          {/* Analytics Skeleton */}
+          <div className="space-y-8">
+            <div className="flex items-center gap-3">
+              <Skeleton className="h-10 w-10 rounded-lg" />
+              <div className="space-y-2">
+                <Skeleton className="h-6 w-48" />
+                <Skeleton className="h-4 w-64" />
+              </div>
+            </div>
+            <div className="grid gap-6 xl:grid-cols-2">
+              <Skeleton className="h-96 rounded-xl border border-border/60" />
+              <Skeleton className="h-96 rounded-xl border border-border/60" />
+            </div>
+            <div className="grid gap-6 lg:grid-cols-3">
+              <Skeleton className="h-80 rounded-xl border border-border/60" />
+              <Skeleton className="h-80 rounded-xl border border-border/60" />
+              <Skeleton className="h-80 rounded-xl border border-border/60" />
+            </div>
           </div>
-          <div className="grid gap-4 lg:grid-cols-[1.5fr,1fr]">
-            <Skeleton className="h-80 rounded-xl border border-border/60" />
+          {/* Leaderboard Skeleton */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <Skeleton className="h-8 w-8 rounded-lg" />
+                <div className="space-y-2">
+                  <Skeleton className="h-6 w-48" />
+                  <Skeleton className="h-4 w-64" />
+                </div>
+              </div>
+              <Skeleton className="h-6 w-24 rounded-full" />
+            </div>
             <Skeleton className="h-80 rounded-xl border border-border/60" />
           </div>
         </>
@@ -562,37 +641,160 @@ export function DashboardPage() {
             We&apos;ll populate analytics once data starts flowing.
           </p>
           <p className="mt-2 max-w-lg text-sm text-muted-foreground">
-            Connect Supabase tables for cosmetics, ownership events, players, and minted snapshots to unlock the full dashboard experience.
+            Connect Supabase tables for cosmetics, ownership events, players, and unboxed snapshots to unlock the full dashboard experience.
           </p>
         </div>
       ) : (
         <>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {overviewMetrics.map((metric) => (
-              <StatCardWithIcon
-                key={metric.label}
-                label={metric.label}
-                value={metric.value}
-                detail={metric.detail}
-                icon={metric.icon}
-                isLoading={dataLoader.isLoading}
-              />
-            ))}
+          {/* Overview Metrics */}
+          <div className="space-y-6">
+            <div className="flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                <TrendingUp className="h-4 w-4 text-primary" />
+              </div>
+              <h2 className="text-xl font-semibold text-foreground">Key Metrics</h2>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {overviewMetrics.map((metric) => (
+                <StatCardWithIcon
+                  key={metric.label}
+                  label={metric.label}
+                  value={metric.value}
+                  detail={metric.detail}
+                  icon={metric.icon}
+                  isLoading={dataLoader.isLoading}
+                />
+              ))}
+            </div>
           </div>
-          <div className="flex flex-col gap-6 rounded-xl border border-border/60 bg-card p-6 shadow-sm">
-              <div className="flex items-center justify-between">
+
+          {/* Analytics Charts Section */}
+          <div className="space-y-8">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <BarChart3 className="h-5 w-5 text-primary" />
+                </div>
                 <div>
-                  <h2 className="text-lg font-semibold text-foreground">
-                    Finish ownership leaderboard
+                  <h2 className="text-2xl font-bold text-foreground">Analytics Dashboard</h2>
+                  <p className="text-sm text-muted-foreground">Comprehensive insights into system activity and trends</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Activity Trends - Full Width */}
+            <div className="grid gap-6 xl:grid-cols-2">
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+                <LineChart
+                  data={analyticsData.eventTimeSeries}
+                  lines={[
+                    { dataKey: "total", name: "Total Events", color: "#3b82f6", strokeWidth: 3 },
+                    { dataKey: "unboxed", name: "Unboxed", color: "#10b981", strokeWidth: 2 },
+                    { dataKey: "transfers", name: "Transfers", color: "#f59e0b", strokeWidth: 2 },
+                    { dataKey: "revokes", name: "Revokes", color: "#ef4444", strokeWidth: 2 },
+                  ]}
+                  title="Activity Over Time"
+                  description="Daily breakdown of ownership events in the last 30 days"
+                  height={350}
+                />
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+                <AreaChart
+                  data={analyticsData.playerGrowthData}
+                  areas={[
+                    { dataKey: "new", name: "New Players", color: "#8b5cf6", fillOpacity: 0.3 },
+                    { dataKey: "total", name: "Total Players", color: "#3b82f6", fillOpacity: 0.1 },
+                  ]}
+                  title="Player Growth"
+                  description="New player registrations and cumulative growth"
+                  height={350}
+                />
+              </div>
+            </div>
+
+            {/* Distribution and Trends - Three Column */}
+            <div className="grid gap-6 lg:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+                <PieChart
+                  data={analyticsData.finishDistribution}
+                  title="Finish Type Distribution"
+                  description="Breakdown of items by finish type"
+                  height={320}
+                  showLabel={true}
+                />
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+                <div className="space-y-6">
+                  <div>
+                    <h3 className="text-lg font-semibold text-foreground">Activity Trends</h3>
+                    <p className="text-sm text-muted-foreground">Week-over-week comparison</p>
+                  </div>
+                  <div className="space-y-6">
+                    <div className="rounded-lg bg-muted/30 p-4">
+                      <TrendIndicator
+                        trend={analyticsData.trends.totalEvents}
+                        label="Total Events"
+                        size="lg"
+                      />
+                    </div>
+                    <div className="rounded-lg bg-muted/30 p-4">
+                      <TrendIndicator
+                        trend={analyticsData.trends.unboxed}
+                        label="Unboxed Items"
+                        size="lg"
+                      />
+                    </div>
+                    <div className="rounded-lg bg-muted/30 p-4">
+                      <TrendIndicator
+                        trend={analyticsData.trends.playerGrowth}
+                        label="New Players"
+                        size="lg"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+                <BarChart
+                  data={flowComparisons.map(({ share, ...rest }) => rest)}
+                  bars={[
+                    { dataKey: "value", name: "This Week", color: "#3b82f6" },
+                    { dataKey: "previous", name: "Previous Week", color: "#6b7280" },
+                  ]}
+                  title="Event Flow Comparison"
+                  description="Week-over-week event breakdown"
+                  height={320}
+                  xAxisKey="label"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Leaderboard Section */}
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
+                  <Users2 className="h-4 w-4 text-primary" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold text-foreground">
+                    Finish Ownership Leaderboard
                   </h2>
-                  <p className="text-xs text-muted-foreground">
-                    Top holders ranked by the finishes currently assigned to them.
+                  <p className="text-sm text-muted-foreground">
+                    Top holders ranked by the finishes currently assigned to them
                   </p>
                 </div>
-                <span className="rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground">
-                  {numberFormatter.format(playerLeaderboard.trackedOwners)} tracked owners
-                </span>
               </div>
+              <span className="rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground">
+                {numberFormatter.format(playerLeaderboard.trackedOwners)} tracked owners
+              </span>
+            </div>
+
+            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
 
               {playerLeaderboard.rows.length ? (
                 <div className="space-y-4">
@@ -619,7 +821,7 @@ export function DashboardPage() {
                         type="button"
                         onClick={clickHandler}
                         disabled={!isClickable}
-                        className="flex w-full flex-wrap items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-left transition hover:border-border focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-80"
+                        className="flex w-full flex-wrap items-center justify-between gap-4 rounded-lg border border-border/60 bg-muted/30 px-4 py-4 text-left transition-all hover:border-border hover:bg-muted/50 hover:shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:cursor-not-allowed disabled:opacity-80"
                         aria-label={
                           entry.player
                             ? `Open profile for ${entry.displayName}`
@@ -667,6 +869,7 @@ export function DashboardPage() {
                 </div>
               )}
             </div>
+          </div>
         </>
         )}
       </section>

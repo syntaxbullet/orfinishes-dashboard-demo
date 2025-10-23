@@ -52,7 +52,7 @@ export const navigationGroups: AppNavGroup[] = [
         href: "/items",
         icon: Package,
         description:
-          "Browse all minted items with their finish types and ownership",
+          "Browse all unboxed items with their finish types and ownership",
       },
       {
         title: "Ownership Events",
@@ -66,7 +66,7 @@ export const navigationGroups: AppNavGroup[] = [
         href: "/players",
         icon: Users,
         description:
-          "Manage player profiles, minting stats, and ban indicators.",
+          "Manage player profiles, unboxing stats, and ban indicators.",
       },
     ],
   },

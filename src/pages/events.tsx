@@ -82,7 +82,7 @@ function getParticipantLabel(
   if (direction === "to") {
     switch (action) {
       case "unbox":
-        return "Minted to"
+        return "Unboxed to"
       case "grant":
         return "Granted to"
       case "transfer":
