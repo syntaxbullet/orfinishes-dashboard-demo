@@ -1,7 +1,6 @@
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/auth-context';
 import { LogOut, User } from 'lucide-react';
-import { NavLink } from 'react-router-dom';
 
 export function UserProfile() {
   const { user, signOut, loading } = useAuth();

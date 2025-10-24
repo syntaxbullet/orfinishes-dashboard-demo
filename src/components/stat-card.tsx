@@ -4,8 +4,7 @@
  */
 
 import * as React from "react"
-import { LucideIcon } from "lucide-react"
-import { Skeleton } from "@/components/ui/skeleton"
+import type { LucideIcon } from "lucide-react"
 
 export interface StatCardProps {
   /** The label/title for the stat */
@@ -32,7 +31,6 @@ export function StatCard({
   label,
   value,
   detail,
-  icon: Icon,
   isLoading = false,
   className,
 }: StatCardProps) {

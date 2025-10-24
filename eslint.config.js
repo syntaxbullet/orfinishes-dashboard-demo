@@ -32,6 +32,31 @@ export default tseslint.config(
       ...reactPlugin.configs["jsx-runtime"].rules,
       ...reactHooks.configs.recommended.rules,
       ...jsxA11y.configs.recommended.rules,
+
+      // TypeScript strictness
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/consistent-type-imports": ["warn", { prefer: "type-imports" }],
+
+      // Code hygiene
+      "no-console": ["warn", { allow: ["warn", "error"] }],
+      "no-debugger": "error",
+      "no-var": "error",
+      "prefer-const": "warn",
+      "eqeqeq": ["error", "always"],
+      "curly": ["error", "all"],
+
+      // React rules
+      "react/react-in-jsx-scope": "off",
+      "react/jsx-uses-react": "off",
+      "react-hooks/exhaustive-deps": "warn",
+      "react/jsx-no-useless-fragment": "warn",
+      "react/jsx-key": "error",
+      "react/prop-types": "off", // TS handles this
+
+      // Accessibility
+      "jsx-a11y/no-autofocus": "warn",
+
+      // Unused variables
       "@typescript-eslint/no-unused-vars": [
         "warn",
         {
@@ -40,9 +65,6 @@ export default tseslint.config(
           ignoreRestSiblings: true,
         },
       ],
-      "react/react-in-jsx-scope": "off",
-      "react/jsx-uses-react": "off",
-      "react-hooks/exhaustive-deps": "warn",
     },
     settings: {
       react: {

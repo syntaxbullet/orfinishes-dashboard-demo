@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
@@ -8,12 +9,10 @@ import { PlayerStatusBadge } from "@/components/player-status-badge"
 import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableRefresh } from "@/components/data-table-toolbar"
-import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { Input } from "@/components/ui/input"
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
-import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
+import { numberFormatter, dateTimeFormatter, dateFormatter } from "@/lib/formatters"
 import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import { fetchPlayers, type PlayerRecord } from "@/utils/supabase"
 
@@ -75,7 +74,7 @@ function createPlayerColumns(
       header: "Player",
       cell: ({ row }) => {
         const handleClick = () => onPlayerClick(row.original)
-        const playerDisplayInfo = createPlayerDisplayInfo(row.original.record, AVATAR_IMAGE_SIZE)
+        const playerDisplayInfo = createPlayerDisplayInfo(row.original.record)
 
         return (
           <button
@@ -349,7 +348,6 @@ export function PlayersPage() {
     })
   }, [players])
 
-  const isProfileSheetOpen = Boolean(playerProfile.selectedPlayer) && playerProfile.isProfileOpen
 
   const visiblePlayers = React.useMemo(() => {
     if (showBanned) {
@@ -377,9 +375,6 @@ export function PlayersPage() {
 
     const activePlayers = tableData.filter((player) => !player.isBanned).length
     const bannedPlayers = tableData.length - activePlayers
-    const syncedPlayers = tableData.filter(
-      (player) => player.lastSyncedAt !== null,
-    ).length
 
     const latestUpdated = tableData.reduce<PlayerRow>(
       (latest, current) =>

@@ -26,7 +26,6 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const ITEM_AVATAR_SIZE = 40
 
 type ItemRow = {
   id: string
@@ -340,7 +339,7 @@ export function ItemsPage() {
   )
 
   const handleConfirmDelete = React.useCallback(async () => {
-    if (!deleteDialog.itemId) return
+    if (!deleteDialog.itemId) { return; }
 
     setDeleteDialog(prev => ({ ...prev, isDeleting: true }))
 
@@ -385,14 +384,14 @@ export function ItemsPage() {
         ? resolvePlayerByIdentifier(item.current_owner, playerLookup)
         : null
       const currentOwnerProfile = currentOwner
-        ? createPlayerDisplayInfo(currentOwner, ITEM_AVATAR_SIZE)
+        ? createPlayerDisplayInfo(currentOwner)
         : null
 
       const unboxedBy = item.minted_by
         ? resolvePlayerByIdentifier(item.minted_by, playerLookup)
         : null
       const unboxedByProfile = unboxedBy
-        ? createPlayerDisplayInfo(unboxedBy, ITEM_AVATAR_SIZE)
+        ? createPlayerDisplayInfo(unboxedBy)
         : null
 
       const unboxedTimestamp = item.minted_at ? Date.parse(item.minted_at) : -Infinity

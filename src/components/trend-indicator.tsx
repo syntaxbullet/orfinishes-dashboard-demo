@@ -21,7 +21,7 @@ export function TrendIndicator({
   size = "md",
 }: TrendIndicatorProps) {
   const getIcon = () => {
-    if (!showDirection) return null
+    if (!showDirection) { return null; }
     
     switch (trend.direction) {
       case "up":

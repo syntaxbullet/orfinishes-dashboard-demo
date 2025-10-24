@@ -2,15 +2,13 @@ import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { Input } from "@/components/ui/input"
 import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableFilter } from "@/components/data-table-toolbar"
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
-import { fetchCosmetics, type CosmeticRecord } from "@/utils/supabase"
+import { fetchCosmetics } from "@/utils/supabase"
 
 type CosmeticRow = {
   id: string
@@ -87,6 +85,7 @@ export function CatalogPage() {
     return await fetchCosmetics()
   })
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const cosmetics = dataLoader.data || []
 
 
@@ -178,70 +177,6 @@ export function CatalogPage() {
     },
   ]
 
-  const insights = React.useMemo(() => {
-    if (!tableData.length) {
-      return []
-    }
-
-    const typeCounts = new Map<string, number>()
-    for (const item of tableData) {
-      typeCounts.set(item.category, (typeCounts.get(item.category) ?? 0) + 1)
-    }
-
-    let topCategory = ""
-    let topCategoryCount = 0
-    for (const [category, count] of typeCounts.entries()) {
-      if (count > topCategoryCount) {
-        topCategory = category
-        topCategoryCount = count
-      }
-    }
-
-    const exclusiveYears = Array.from(
-      new Set(
-        tableData
-          .filter((item) => item.exclusiveToYear !== null)
-          .map((item) => item.exclusiveToYear as number),
-      ),
-    ).sort((a, b) => a - b)
-
-    const missingSourceCount = tableData.filter((item) => !item.source).length
-
-    const formattedYears =
-      exclusiveYears.length === 0
-        ? null
-        : exclusiveYears.length <= 4
-          ? exclusiveYears.join(", ")
-          : `${exclusiveYears.slice(0, 3).join(", ")}, +${
-              exclusiveYears.length - 3
-            } more`
-
-    return [
-      topCategory
-        ? {
-            label: "Most common type",
-            value: `${topCategory} · ${numberFormatter.format(
-              topCategoryCount,
-            )} cosmetics`,
-          }
-        : {
-            label: "Most common type",
-            value: "Type metadata missing",
-          },
-      {
-        label: "Exclusive programs",
-        value: formattedYears ?? "None recorded",
-      },
-      {
-        label: "Missing source metadata",
-        value: missingSourceCount
-          ? `${numberFormatter.format(
-              missingSourceCount,
-            )} cosmetics need a source`
-          : "All cosmetics have a source",
-      },
-    ]
-  }, [tableData])
 
   return (
     <section className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">

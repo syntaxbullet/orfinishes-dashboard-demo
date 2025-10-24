@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Clock3, Loader2, Package, Star, User } from "lucide-react"
+import { Clock3, Loader2, Package, Star } from "lucide-react"
 
 import { Separator } from "@/components/ui/separator"
 import {
@@ -11,10 +11,9 @@ import {
 } from "@/components/ui/sheet"
 import { PlayerAvatar } from "@/components/player-avatar"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
-import { Button } from "@/components/ui/button"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
-import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
-import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
+import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
+import { createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
 import {
   fetchOwnershipEventsForItem,
@@ -113,15 +112,15 @@ export function ItemDetailSheet({
             : null
 
           const fromProfile = fromPlayer
-            ? createPlayerDisplayInfo(fromPlayer, 40)
+            ? createPlayerDisplayInfo(fromPlayer)
             : event.from_player
-              ? createFallbackPlayerDisplayInfo(event.from_player, 40)
+              ? createFallbackPlayerDisplayInfo(event.from_player)
               : null
 
           const toProfile = toPlayer
-            ? createPlayerDisplayInfo(toPlayer, 40)
+            ? createPlayerDisplayInfo(toPlayer)
             : event.to_player
-              ? createFallbackPlayerDisplayInfo(event.to_player, 40)
+              ? createFallbackPlayerDisplayInfo(event.to_player)
               : null
 
           return {
@@ -157,7 +156,7 @@ export function ItemDetailSheet({
     return () => {
       cancelled = true
     }
-  }, [item?.id, open])
+  }, [item, item?.id, open])
 
   const handlePlayerClick = React.useCallback(
     (player: PlayerRecord) => {
@@ -214,17 +213,17 @@ export function ItemDetailSheet({
     }
 
     const player = resolvePlayerByIdentifier(item.current_owner, createPlayerLookupMap(players))
-    return player ? createPlayerDisplayInfo(player, 40) : null
+    return player ? createPlayerDisplayInfo(player) : null
   }, [item?.current_owner, players])
 
   const unboxedBy = React.useMemo(() => {
-    if (!item?.unboxed_by) {
+    if (!item?.minted_by) {
       return null
     }
 
-    const player = resolvePlayerByIdentifier(item.unboxed_by, createPlayerLookupMap(players))
-    return player ? createPlayerDisplayInfo(player, 40) : null
-  }, [item?.unboxed_by, players])
+    const player = resolvePlayerByIdentifier(item.minted_by, createPlayerLookupMap(players))
+    return player ? createPlayerDisplayInfo(player) : null
+  }, [item?.minted_by, players])
 
   return (
     <>

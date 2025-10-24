@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session } from '@supabase/supabase-js';
+import { type User, type Session } from '@supabase/supabase-js';
 import { supabase } from '@/utils/supabase';
 
 interface AuthContextType {
@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           redirectTo: `${window.location.origin}/`,
         },
       });
-      if (error) throw error;
+      if (error) { throw error; }
     } catch (error) {
       console.error('Error signing in with Discord:', error);
     }
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     try {
       const { error } = await supabase.auth.signOut();
-      if (error) throw error;
+      if (error) { throw error; }
     } catch (error) {
       console.error('Error signing out:', error);
     }

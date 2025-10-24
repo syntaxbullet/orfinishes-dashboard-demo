@@ -64,8 +64,8 @@ export function PlayerProfileSheet({
         )
 
         const sortedSnapshots = [...playerSnapshots].sort((left, right) => {
-          const leftDate = left.latest_occurred_at ?? left.created_at
-          const rightDate = right.latest_occurred_at ?? right.created_at
+          const leftDate = left.latest_occurred_at ?? null
+          const rightDate = right.latest_occurred_at ?? null
 
           const leftTimestamp = Date.parse(leftDate ?? "")
           const rightTimestamp = Date.parse(rightDate ?? "")
@@ -186,7 +186,7 @@ export function PlayerProfileSheet({
             <div className="relative flex-shrink-0">
               {player ? (
                 <PlayerAvatar 
-                  profile={createPlayerDisplayInfo(player, 112)} 
+                  profile={createPlayerDisplayInfo(player)} 
                   size="xl" 
                   className="rounded-lg h-16 w-16 sm:h-20 sm:w-20"
                 />
@@ -262,9 +262,9 @@ export function PlayerProfileSheet({
             </p>
           ) : ownedFinishes.length ? (
             <ul className="mt-3 sm:mt-4 space-y-2 sm:space-y-3 overflow-y-auto pr-1">
-              {ownedFinishes.map(({ snapshot, cosmetic }) => {
+              {ownedFinishes.map(({ snapshot }) => {
                 const ownedSince =
-                  snapshot.latest_occurred_at ?? snapshot.created_at ?? null
+                  snapshot.latest_occurred_at ?? null
                 const unboxedByPlayer =
                   player && snapshot.first_unbox_to_player_id === player.id && snapshot.first_unbox_occurred_at
                 let ownedDisplay = "Unknown date"

@@ -82,13 +82,13 @@ export type PlayerDisplayInfo = {
 /**
  * Creates a PlayerDisplayInfo object from a PlayerRecord.
  */
-export function createPlayerDisplayInfo(player: PlayerRecord, avatarSize: number = 64): PlayerDisplayInfo {
+export function createPlayerDisplayInfo(player: PlayerRecord): PlayerDisplayInfo {
   const displayName = getPlayerDisplayName(player)
   
   return {
     id: player.id,
     displayName,
-    avatarUrl: buildPlayerAvatarUrl(player, avatarSize),
+    avatarUrl: buildPlayerAvatarUrl(player, 64),
     fallbackInitial: getPlayerInitial(player),
     minecraftUuid: player.minecraft_uuid,
   }
@@ -166,7 +166,7 @@ export function resolvePlayerByIdentifier(
  * Creates a fallback player display info for unknown players.
  * Used when player data is not available but we need to show something.
  */
-export function createFallbackPlayerDisplayInfo(identifier: string, avatarSize: number = 64): PlayerDisplayInfo {
+export function createFallbackPlayerDisplayInfo(identifier: string): PlayerDisplayInfo {
   const trimmed = identifier.trim()
   const initial = trimmed.charAt(0).toUpperCase() || "?"
 

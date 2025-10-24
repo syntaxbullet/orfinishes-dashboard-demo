@@ -31,7 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react"
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronLeftIcon, ChevronRightIcon } from "lucide-react"
 
 type DataTableProps<TData, TValue> = {
   columns: ColumnDef<TData, TValue>[]
@@ -57,6 +57,7 @@ export function DataTable<TData, TValue>({
     []
   )
 
+  // eslint-disable-next-line react-hooks/incompatible-library
   const table = useReactTable({
     data,
     columns,
@@ -222,15 +223,17 @@ export function DataTable<TData, TValue>({
               <PaginationPrevious
                 href="#"
                 onClick={(event) => {
-                  event.preventDefault()
+                  event.preventDefault();
                   if (canPrevious) {
-                    table.previousPage()
+                    table.previousPage();
                   }
                 }}
                 className={cn(!canPrevious && "pointer-events-none opacity-50")}
                 aria-disabled={!canPrevious}
                 tabIndex={canPrevious ? undefined : -1}
-              />
+              >
+                <ChevronLeftIcon />
+              </PaginationPrevious>
             </PaginationItem>
             {paginationRange.map((item, index) =>
               item === "ellipsis" ? (
@@ -260,11 +263,13 @@ export function DataTable<TData, TValue>({
                   if (canNext) {
                     table.nextPage()
                   }
-                }}
+                } }
                 className={cn(!canNext && "pointer-events-none opacity-50")}
                 aria-disabled={!canNext}
                 tabIndex={canNext ? undefined : -1}
-              />
+              >
+                <ChevronRightIcon />
+              </PaginationNext>
             </PaginationItem>
           </PaginationContent>
         </Pagination>

@@ -49,7 +49,7 @@ export function CosmeticCombobox({
   }, [open, cosmetics.length])
 
   const selectedCosmetic = React.useMemo(() => {
-    if (!value) return null
+    if (!value) { return null; }
     return cosmetics.find(c => c.id === value)
   }, [value, cosmetics])
 

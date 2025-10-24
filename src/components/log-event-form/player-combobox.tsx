@@ -58,13 +58,13 @@ export function PlayerCombobox({
   }, [open, players.length])
 
   const selectedPlayer = React.useMemo(() => {
-    if (!value) return null
+    if (!value) { return null; }
     return players.find(p => p.id === value)
   }, [value, players])
 
   const selectedDisplayInfo = React.useMemo(() => {
-    if (!selectedPlayer) return null
-    return createPlayerDisplayInfo(selectedPlayer, 32)
+    if (!selectedPlayer) { return null; }
+    return createPlayerDisplayInfo(selectedPlayer)
   }, [selectedPlayer])
 
   const resolvedDisplayInfo = React.useMemo(() => {
@@ -83,7 +83,7 @@ export function PlayerCombobox({
         return
       }
 
-      const displayInfo = createPlayerDisplayInfo(player, 32)
+      const displayInfo = createPlayerDisplayInfo(player)
       onSelectionChange?.({ record: player, displayInfo })
       onValueChange(player.id)
     },
@@ -136,7 +136,7 @@ export function PlayerCombobox({
                 <CommandEmpty>No players found.</CommandEmpty>
                 <CommandGroup>
                   {players.map((player) => {
-                    const displayInfo = createPlayerDisplayInfo(player, 32)
+                    const displayInfo = createPlayerDisplayInfo(player)
                     return (
                       <CommandItem
                         key={player.id}

@@ -27,7 +27,6 @@ import {
   type PlayerRecord,
 } from "@/utils/supabase"
 
-const PARTICIPANT_AVATAR_SIZE = 40
 
 type ItemMetadata = {
   name: string
@@ -35,7 +34,7 @@ type ItemMetadata = {
 }
 
 function buildParticipantProfile(player: PlayerRecord): PlayerDisplayInfo {
-  return createPlayerDisplayInfo(player, PARTICIPANT_AVATAR_SIZE)
+  return createPlayerDisplayInfo(player)
 }
 
 type OwnershipEventRow = {
@@ -390,7 +389,7 @@ export function EventsPage() {
   )
 
   const handleConfirmDelete = React.useCallback(async () => {
-    if (!deleteDialog.eventId) return
+    if (!deleteDialog.eventId) { return; }
 
     setDeleteDialog(prev => ({ ...prev, isDeleting: true }))
 
@@ -464,7 +463,7 @@ export function EventsPage() {
         return buildParticipantProfile(player)
       }
 
-      return createFallbackPlayerDisplayInfo(identifier, PARTICIPANT_AVATAR_SIZE)
+      return createFallbackPlayerDisplayInfo(identifier)
     }
 
     return events.map((event) => {
