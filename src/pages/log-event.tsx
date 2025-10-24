@@ -831,7 +831,7 @@ function EventSummaryCard({
           </SummaryRow>
 
           <SummaryRow icon={Users} iconClassName={config?.iconAccent} label="Participants">
-            <div className="space-y-2">
+            <div className="space-y-2 overflow-hidden">
               {(isTransfer || isRevoke) && (
                 <ParticipantSummaryRow label={isRevoke ? "Current owner" : "From"} participant={fromPlayer} />
               )}
@@ -923,7 +923,7 @@ function ParticipantSummaryRow({
   }
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-border/60 bg-background/70 p-2">
+    <div className="flex w-full items-center gap-3 overflow-hidden rounded-lg border border-border/60 bg-background/70 p-2">
       <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
         {label}
       </span>

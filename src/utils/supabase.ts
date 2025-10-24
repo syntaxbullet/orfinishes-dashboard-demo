@@ -496,6 +496,106 @@ export async function fetchCosmeticsByIds(
   );
 }
 
+export async function fetchFinishTypes(
+  options: CacheOptions = {},
+): Promise<string[]> {
+  const cacheKey = buildCacheKey("finishTypes");
+
+  type FinishTypeRecord = {
+    finish_type: string | null;
+  };
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const unique = new Set<string>();
+      const PAGE_SIZE = 1000;
+      let offset = 0;
+
+      while (true) {
+        const to = offset + PAGE_SIZE - 1;
+        const { data, error } = await supabase
+          .from("items")
+          .select("finish_type")
+          .order("finish_type", { ascending: true })
+          .range(offset, to)
+          .returns<FinishTypeRecord[]>();
+
+        if (error) {
+          raise(error);
+        }
+
+        if (!data?.length) {
+          break;
+        }
+
+        for (const record of data) {
+          const finishType = record.finish_type?.trim();
+          if (finishType) {
+            unique.add(finishType);
+          }
+        }
+
+        if (data.length < PAGE_SIZE) {
+          break;
+        }
+
+        offset += PAGE_SIZE;
+      }
+
+      return Array.from(unique).sort((a, b) => a.localeCompare(b));
+    },
+    options,
+  );
+}
+
+export async function fetchPlayersByIds(
+  ids: string[],
+  options: CacheOptions = {},
+): Promise<PlayerRecord[]> {
+  const normalizedIds = ids
+    .map((id) => (typeof id === "string" ? id.trim() : ""))
+    .filter((value) => value.length > 0);
+  const uniqueIds = Array.from(new Set(normalizedIds)).sort((a, b) =>
+    a.localeCompare(b),
+  );
+
+  if (uniqueIds.length === 0) {
+    return [];
+  }
+
+  const cacheKey = buildCacheKey("playersByIds", uniqueIds);
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      const CHUNK_SIZE = 100;
+      const results: PlayerRecord[] = [];
+
+      for (let index = 0; index < uniqueIds.length; index += CHUNK_SIZE) {
+        const chunk = uniqueIds.slice(index, index + CHUNK_SIZE);
+
+        const { data, error } = await supabase
+          .from("players")
+          .select("*")
+          .in("id", chunk)
+          .returns<PlayerRecord[]>();
+
+        if (error) {
+          raise(error);
+        }
+
+        if (data?.length) {
+          results.push(...data);
+        }
+      }
+
+      return results;
+    },
+    options,
+  );
+}
+
 export async function fetchOwnershipEventsForItem(
   itemId: string,
   options: QueryOptions & CacheOptions = {},

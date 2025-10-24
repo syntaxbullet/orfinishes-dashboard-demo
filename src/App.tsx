@@ -3,6 +3,7 @@ import "./index.css";
 import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 import { ThemeProvider } from "./components/theme-provider";
+import { AuthProvider } from "./contexts/auth-context";
 import { RootLayout } from "./layouts/root-layout";
 import { DashboardPage } from "./pages/dashboard";
 import { CatalogPage } from "./pages/catalog";
@@ -47,7 +48,9 @@ const router = createBrowserRouter([
 export function App() {
   return (
     <ThemeProvider>
-      <RouterProvider router={router} />
+      <AuthProvider>
+        <RouterProvider router={router} />
+      </AuthProvider>
     </ThemeProvider>
   );
 }

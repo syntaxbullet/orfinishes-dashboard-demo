@@ -16,8 +16,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { getUniqueFinishTypes } from "@/lib/event-utils"
-import { fetchItems, type ItemRecord } from "@/utils/supabase"
+import { fetchFinishTypes } from "@/utils/supabase"
 
 interface FinishTypeComboboxProps {
   value?: string
@@ -40,12 +39,11 @@ export function FinishTypeCombobox({
   React.useEffect(() => {
     if (open && finishTypes.length === 0) {
       setLoading(true)
-      fetchItems()
-        .then(items => {
-          const types = getUniqueFinishTypes(items)
-          setFinishTypes(types)
+      fetchFinishTypes()
+        .then(setFinishTypes)
+        .catch((error) => {
+          console.error("Failed to load finish types:", error)
         })
-        .catch(console.error)
         .finally(() => setLoading(false))
     }
   }, [open, finishTypes.length])
@@ -68,10 +66,10 @@ export function FinishTypeCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start" sideOffset={4}>
-        <Command>
+      <PopoverContent className="w-[min(360px,90vw)] p-0" align="start" sideOffset={4}>
+        <Command className="max-h-80 overflow-hidden">
           <CommandInput placeholder="Search finish types..." />
-          <CommandList>
+          <CommandList className="max-h-72 overflow-y-auto">
             {loading ? (
               <CommandEmpty>Loading finish types...</CommandEmpty>
             ) : (

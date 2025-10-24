@@ -17,6 +17,7 @@ import {
   SidebarSeparator,
 } from "@/components/ui/sidebar";
 import { navigationGroups } from "@/config/navigation";
+import { AuthGuard } from "@/components/auth/auth-guard";
 
 export function AppSidebar() {
   const location = useLocation();
@@ -77,21 +78,7 @@ export function AppSidebar() {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton asChild tooltip="View profile">
-              <NavLink to="/settings">
-                <span className="flex size-8 items-center justify-center rounded-full bg-sidebar-accent text-xs font-semibold uppercase">
-                  IJ
-                </span>
-                <span className="grid flex-1 gap-0.5">
-                  <span className="truncate text-sm font-medium">
-                    Ivan Jovanovic
-                  </span>
-                  <span className="truncate text-xs text-muted-foreground">
-                    Developer
-                  </span>
-                </span>
-              </NavLink>
-            </SidebarMenuButton>
+            <AuthGuard />
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarFooter>
