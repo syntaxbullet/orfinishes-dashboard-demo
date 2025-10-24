@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
+import { useNavigate } from "react-router-dom"
 
 import { PlayerAvatar } from "@/components/player-avatar"
 import { PlayerCombobox, type PlayerSelection } from "@/components/log-event-form/player-combobox"
@@ -23,13 +24,6 @@ import { ItemSearchCombobox, type ItemWithMetadata } from "@/components/log-even
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { Separator } from "@/components/ui/separator"
 import { ACTION_DESCRIPTIONS, ACTION_LABELS, validateEventData } from "@/lib/event-utils"
 import { dateTimeFormatter } from "@/lib/formatters"
@@ -41,11 +35,6 @@ import {
   type CosmeticRecord,
   type OwnershipAction,
 } from "@/utils/supabase"
-
-interface LogEventSheetProps {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-}
 
 type FormData = {
   action: OwnershipAction | ""
@@ -115,7 +104,8 @@ function createInitialFormState(): FormData {
   }
 }
 
-export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
+export function LogEventPage() {
+  const navigate = useNavigate()
   const [formData, setFormData] = React.useState<FormData>(() => createInitialFormState())
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [errors, setErrors] = React.useState<string[]>([])
@@ -126,18 +116,6 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
   const [selectedToPlayer, setSelectedToPlayer] = React.useState<PlayerSelection | null>(null)
   const [isMobileSummaryOpen, setIsMobileSummaryOpen] = React.useState(false)
 
-  React.useEffect(() => {
-    if (open) {
-      setFormData(createInitialFormState())
-      setErrors([])
-      setSelectedItem(null)
-      setSelectedCosmetic(null)
-      setSelectedFromPlayer(null)
-      setSelectedToPlayer(null)
-      setIsMobileSummaryOpen(false)
-    }
-  }, [open])
-
   const isUnboxOrGrant = formData.action === "unbox" || formData.action === "grant"
   const isTransfer = formData.action === "transfer"
   const isRevoke = formData.action === "revoke"
@@ -146,6 +124,16 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
   const activeActionConfig = formData.action ? ACTION_CONFIG[formData.action] : null
   const ActiveActionIcon = activeActionConfig?.icon ?? Plus
   const submitLabel = formData.action ? SUBMIT_LABELS[formData.action] : "Create event"
+
+  const resetForm = React.useCallback(() => {
+    setFormData(createInitialFormState())
+    setErrors([])
+    setSelectedItem(null)
+    setSelectedCosmetic(null)
+    setSelectedFromPlayer(null)
+    setSelectedToPlayer(null)
+    setIsMobileSummaryOpen(false)
+  }, [])
 
   const handleActionChange = React.useCallback((action: OwnershipAction) => {
     setFormData((prev) => {
@@ -169,16 +157,6 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
     setSelectedFromPlayer(null)
     setSelectedToPlayer(null)
     setErrors([])
-  }, [])
-
-  const handleRefresh = React.useCallback(() => {
-    setFormData(createInitialFormState())
-    setErrors([])
-    setSelectedItem(null)
-    setSelectedCosmetic(null)
-    setSelectedFromPlayer(null)
-    setSelectedToPlayer(null)
-    setIsMobileSummaryOpen(false)
   }, [])
 
   const handleItemSelectionChange = React.useCallback(
@@ -211,7 +189,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
         setSelectedFromPlayer(nextFromSelection)
       }
     },
-    [setSelectedFromPlayer],
+    [],
   )
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -259,7 +237,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
       }
 
       await createOwnershipEvent(eventData)
-      onOpenChange(false)
+      navigate("/events")
     } catch (error) {
       console.error("Failed to create ownership event:", error)
 
@@ -284,99 +262,101 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
   }
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent className="sm:max-w-4xl">
-        <SheetHeader className="border-b border-border/60 pb-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span
-                  className={cn(
-                    "flex size-11 items-center justify-center rounded-lg bg-muted text-muted-foreground transition-colors",
-                    activeActionConfig?.iconAccent,
-                  )}
-                >
-                  <ActiveActionIcon className="h-5 w-5" />
-                </span>
-                <div className="space-y-1">
-                  <SheetTitle className="text-xl">
-                    {formData.action ? ACTION_LABELS[formData.action] : "Log Event"}
-                  </SheetTitle>
-                  <SheetDescription className="text-sm">
-                    {formData.action
-                      ? ACTION_DESCRIPTIONS[formData.action]
-                      : "Create a new ownership event or transfer an existing item."}
-                  </SheetDescription>
-                </div>
-              </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                onClick={handleRefresh}
-                disabled={isSubmitting}
-                className="self-start"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Reset form
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Follow the prompts below to capture the item, participants, and timing. The live preview on the
-              right keeps everything in view as you go.
+    <div className="mx-auto w-full max-w-6xl space-y-8 px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="flex items-center gap-3">
+          <span
+            className={cn(
+              "flex size-12 items-center justify-center rounded-xl bg-muted text-muted-foreground transition-colors",
+              activeActionConfig?.iconAccent,
+            )}
+          >
+            <ActiveActionIcon className="h-5 w-5" />
+          </span>
+          <div className="space-y-1">
+            <h1 className="text-2xl font-semibold tracking-tight text-foreground sm:text-3xl">
+              {formData.action ? ACTION_LABELS[formData.action] : "Log ownership event"}
+            </h1>
+            <p className="text-sm text-muted-foreground sm:text-base">
+              {formData.action
+                ? ACTION_DESCRIPTIONS[formData.action]
+                : "Capture ownership changes, grants, and revokes with full context."}
             </p>
           </div>
-        </SheetHeader>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            onClick={resetForm}
+            disabled={isSubmitting}
+            className="gap-2"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Reset form
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => navigate(-1)}
+            disabled={isSubmitting}
+            className="gap-2"
+          >
+            <X className="h-4 w-4" />
+            Close
+          </Button>
+        </div>
+      </div>
 
-        <div className="mt-8 space-y-6">
-          <div className="lg:hidden">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => setIsMobileSummaryOpen((prev) => !prev)}
-              className="flex w-full items-center justify-between rounded-xl border-border/70 bg-background px-4 py-3 text-left"
-            >
-              <span className="flex flex-col">
-                <span className="text-sm font-semibold text-foreground">Event summary</span>
-                <span className="text-xs text-muted-foreground">
-                  Keep track of item, participants, and timing.
-                </span>
-              </span>
-              {isMobileSummaryOpen ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
-            </Button>
+      <div className="mt-2 space-y-6">
+        <div className="lg:hidden">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setIsMobileSummaryOpen((previous) => !previous)}
+            className="flex w-full items-center justify-between rounded-xl border-border/70 bg-background px-4 py-3 text-left"
+          >
+            <span className="flex flex-col">
+              <span className="text-sm font-semibold text-foreground">Event summary</span>
+              <span className="text-xs text-muted-foreground">Keep track of item, participants, and timing.</span>
+            </span>
             {isMobileSummaryOpen ? (
-              <div className="mt-4">
-                <EventSummaryCard
-                  action={formData.action}
-                  itemId={formData.itemId}
-                  cosmeticId={formData.cosmeticId}
-                  finishType={formData.finishType}
-                  occurredAt={formData.occurredAt}
-                  item={selectedItem}
-                  cosmetic={selectedCosmetic}
-                  fromPlayer={selectedFromPlayer}
-                  toPlayer={selectedToPlayer}
-                  isUnboxOrGrant={isUnboxOrGrant}
-                  isTransfer={isTransfer}
-                  isRevoke={isRevoke}
-                  isSubmitting={isSubmitting}
-                />
-              </div>
-            ) : null}
-          </div>
+              <ChevronUp className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            )}
+          </Button>
+          {isMobileSummaryOpen ? (
+            <div className="mt-4">
+              <EventSummaryCard
+                action={formData.action}
+                itemId={formData.itemId}
+                cosmeticId={formData.cosmeticId}
+                finishType={formData.finishType}
+                occurredAt={formData.occurredAt}
+                item={selectedItem}
+                cosmetic={selectedCosmetic}
+                fromPlayer={selectedFromPlayer}
+                toPlayer={selectedToPlayer}
+                isUnboxOrGrant={isUnboxOrGrant}
+                isTransfer={isTransfer}
+                isRevoke={isRevoke}
+                isSubmitting={isSubmitting}
+              />
+            </div>
+          ) : null}
+        </div>
 
-          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
-            <form onSubmit={handleSubmit} className="space-y-10">
-              <section className="space-y-4">
-                <div className="space-y-1">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Step 1</p>
-                  <h3 className="text-lg font-semibold text-foreground">Choose what happened</h3>
-                  <p className="text-sm text-muted-foreground">
+        <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
+          <form onSubmit={handleSubmit} className="space-y-10">
+            <section className="space-y-4">
+              <div className="space-y-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Step 1</p>
+                <h2 className="text-lg font-semibold text-foreground">Choose what happened</h2>
+                <p className="text-sm text-muted-foreground">
                   Pick the type of ownership event to unlock the relevant fields.
                 </p>
               </div>
@@ -394,10 +374,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                       className={cn(
                         "group flex w-full flex-col gap-3 rounded-xl border border-border/60 bg-card p-4 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60",
                         isActive
-                          ? cn(
-                              config.buttonActive,
-                              "shadow-md hover:shadow-lg focus-visible:ring-offset-2",
-                            )
+                          ? cn(config.buttonActive, "shadow-md hover:shadow-lg focus-visible:ring-offset-2")
                           : "hover:border-border/80",
                       )}
                       aria-pressed={isActive}
@@ -419,9 +396,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                         >
                           <Icon className="h-4 w-4" />
                         </span>
-                        <p className="text-sm text-muted-foreground">
-                          {ACTION_DESCRIPTIONS[action]}
-                        </p>
+                        <p className="text-sm text-muted-foreground">{ACTION_DESCRIPTIONS[action]}</p>
                       </div>
                     </button>
                   )
@@ -435,9 +410,9 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
 
                 <section className="space-y-8">
                   <div className="space-y-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                       Item details
-                    </h4>
+                    </h3>
 
                     {(isTransfer || isRevoke) && (
                       <div className="space-y-3">
@@ -467,7 +442,8 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                           disabled={disableInputs}
                         />
                         <p className="text-xs text-muted-foreground">
-                          You can search by cosmetic name, finish type, or the current owner to quickly narrow the list.
+                          You can search by cosmetic name, finish type, or the current owner to quickly narrow the
+                          list.
                         </p>
                       </div>
                     )}
@@ -535,9 +511,9 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                   </div>
 
                   <div className="space-y-4">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                       Participants
-                    </h4>
+                    </h3>
                     <div className="grid gap-6 md:grid-cols-2">
                       {(isTransfer || isRevoke) && (
                         <div className="space-y-3">
@@ -610,9 +586,9 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                   </div>
 
                   <div className="space-y-3">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
+                    <h3 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">
                       Timing
-                    </h4>
+                    </h3>
                     <div className="space-y-2">
                       <Label htmlFor="occurredAt" className="text-base font-semibold text-foreground">
                         When did this occur?
@@ -640,9 +616,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                     <div className="flex items-start gap-2">
                       <X className="mt-0.5 h-4 w-4 text-destructive" />
                       <div className="space-y-2">
-                        <p className="text-sm font-semibold text-destructive">
-                          Please fix the following issues:
-                        </p>
+                        <p className="text-sm font-semibold text-destructive">Please fix the following issues:</p>
                         <ul className="space-y-1">
                           {errors.map((error, index) => (
                             <li key={index} className="text-sm text-destructive">
@@ -650,14 +624,12 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                             </li>
                           ))}
                         </ul>
-                        {errors.some(
-                          (error) => error.includes("refresh") || error.includes("stale"),
-                        ) && (
+                        {errors.some((error) => error.includes("refresh") || error.includes("stale")) && (
                           <Button
                             type="button"
                             variant="outline"
                             size="sm"
-                            onClick={handleRefresh}
+                            onClick={resetForm}
                             className="mt-2 h-8"
                           >
                             <RefreshCw className="mr-2 h-3 w-3" />
@@ -673,17 +645,13 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                   <Button
                     type="button"
                     variant="outline"
-                    onClick={() => onOpenChange(false)}
+                    onClick={() => navigate(-1)}
                     className="h-12 sm:min-w-[120px]"
                     disabled={isSubmitting}
                   >
                     Cancel
                   </Button>
-                  <Button
-                    type="submit"
-                    disabled={isSubmitting}
-                    className="h-12 sm:min-w-[160px]"
-                  >
+                  <Button type="submit" disabled={isSubmitting} className="h-12 sm:min-w-[160px]">
                     {isSubmitting ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -699,29 +667,28 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                 </div>
               </>
             ) : null}
-            </form>
+          </form>
 
-            <div className="hidden lg:block">
-              <EventSummaryCard
-                action={formData.action}
-                itemId={formData.itemId}
-                cosmeticId={formData.cosmeticId}
-                finishType={formData.finishType}
-                occurredAt={formData.occurredAt}
-                item={selectedItem}
-                cosmetic={selectedCosmetic}
-                fromPlayer={selectedFromPlayer}
-                toPlayer={selectedToPlayer}
-                isUnboxOrGrant={isUnboxOrGrant}
-                isTransfer={isTransfer}
-                isRevoke={isRevoke}
-                isSubmitting={isSubmitting}
-              />
-            </div>
+          <div className="hidden lg:block">
+            <EventSummaryCard
+              action={formData.action}
+              itemId={formData.itemId}
+              cosmeticId={formData.cosmeticId}
+              finishType={formData.finishType}
+              occurredAt={formData.occurredAt}
+              item={selectedItem}
+              cosmetic={selectedCosmetic}
+              fromPlayer={selectedFromPlayer}
+              toPlayer={selectedToPlayer}
+              isUnboxOrGrant={isUnboxOrGrant}
+              isTransfer={isTransfer}
+              isRevoke={isRevoke}
+              isSubmitting={isSubmitting}
+            />
           </div>
         </div>
-      </SheetContent>
-    </Sheet>
+      </div>
+    </div>
   )
 }
 
@@ -844,9 +811,7 @@ function EventSummaryCard({
               {action ? ACTION_LABELS[action] : "Event preview"}
             </p>
             <p className="text-xs text-muted-foreground">
-              {action
-                ? ACTION_DESCRIPTIONS[action]
-                : "Selections will appear here as you fill out the form."}
+              {action ? ACTION_DESCRIPTIONS[action] : "Selections will appear here as you fill out the form."}
             </p>
           </div>
         </div>
@@ -868,14 +833,9 @@ function EventSummaryCard({
           <SummaryRow icon={Users} iconClassName={config?.iconAccent} label="Participants">
             <div className="space-y-2">
               {(isTransfer || isRevoke) && (
-                <ParticipantSummaryRow
-                  label={isRevoke ? "Current owner" : "From"}
-                  participant={fromPlayer}
-                />
+                <ParticipantSummaryRow label={isRevoke ? "Current owner" : "From"} participant={fromPlayer} />
               )}
-              {(isUnboxOrGrant || isTransfer) && (
-                <ParticipantSummaryRow label="To" participant={toPlayer} />
-              )}
+              {(isUnboxOrGrant || isTransfer) && <ParticipantSummaryRow label="To" participant={toPlayer} />}
               {!hasFromParticipant && !hasToParticipant && (
                 <p className="text-sm text-muted-foreground">
                   Select the players involved to finish setting up the event.
@@ -969,17 +929,13 @@ function ParticipantSummaryRow({
       </span>
       <PlayerAvatar profile={participant.displayInfo} size="sm" />
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-foreground">
-          {participant.displayInfo.displayName}
-        </p>
+        <p className="truncate text-sm font-medium text-foreground">{participant.displayInfo.displayName}</p>
         {participant.displayInfo.minecraftUuid ? (
-          <p className="truncate text-xs text-muted-foreground">
-            {participant.displayInfo.minecraftUuid}
-          </p>
+          <p className="truncate text-xs text-muted-foreground">{participant.displayInfo.minecraftUuid}</p>
         ) : null}
       </div>
     </div>
   )
 }
 
-export default LogEventSheet
+export default LogEventPage

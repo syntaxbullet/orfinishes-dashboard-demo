@@ -1,9 +1,8 @@
 import * as React from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Link, Outlet, useLocation } from "react-router-dom";
 import { Plus } from "lucide-react";
 
 import { AppSidebar } from "@/components/app-sidebar";
-import { LogEventSheet } from "@/components/log-event-sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +14,6 @@ import { allNavigationItems } from "@/config/navigation";
 
 export function RootLayout() {
   const location = useLocation();
-  const [isLogEventSheetOpen, setIsLogEventSheetOpen] = React.useState(false);
 
   const activeItem =
     allNavigationItems.find((item) =>
@@ -45,21 +43,25 @@ export function RootLayout() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button 
-                size="sm" 
+              <Button
+                asChild
+                size="sm"
                 className="hidden sm:inline-flex bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-                onClick={() => setIsLogEventSheetOpen(true)}
               >
+                <Link to="/events/log">
                 <Plus className="mr-2 h-4 w-4" />
                 Log Event
+                </Link>
               </Button>
-              <Button 
-                size="sm" 
+              <Button
+                asChild
+                size="sm"
                 className="sm:hidden bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
-                onClick={() => setIsLogEventSheetOpen(true)}
               >
+                <Link to="/events/log">
                 <Plus className="mr-2 h-4 w-4" />
                 Log
+                </Link>
               </Button>
               <ThemeToggle />
             </div>
@@ -69,10 +71,6 @@ export function RootLayout() {
           </main>
         </div>
       </SidebarInset>
-      <LogEventSheet 
-        open={isLogEventSheetOpen} 
-        onOpenChange={setIsLogEventSheetOpen} 
-      />
     </SidebarProvider>
   );
 }

@@ -8,6 +8,7 @@ import { DashboardPage } from "./pages/dashboard";
 import { CatalogPage } from "./pages/catalog";
 import { EventsPage } from "./pages/events";
 import { ItemsPage } from "./pages/items";
+import { LogEventPage } from "./pages/log-event";
 import { PlayersPage } from "./pages/players";
 
 const router = createBrowserRouter([
@@ -30,6 +31,10 @@ const router = createBrowserRouter([
       {
         path: "events",
         element: <EventsPage />,
+      },
+      {
+        path: "events/log",
+        element: <LogEventPage />,
       },
       {
         path: "players",
