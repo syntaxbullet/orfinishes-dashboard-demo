@@ -1,6 +1,6 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Loader2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 
 import { DataTable } from "@/components/ui/data-table"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
@@ -8,6 +8,8 @@ import { PlayerAvatar } from "@/components/player-avatar"
 import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } from "@/components/data-table-toolbar"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
+import { Button } from "@/components/ui/button"
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
@@ -18,6 +20,7 @@ import {
   fetchItemsByIds,
   fetchOwnershipEvents,
   fetchPlayers,
+  deleteOwnershipEvent,
   type CosmeticRecord,
   type ItemRecord,
   type OwnershipAction,
@@ -152,6 +155,7 @@ function ParticipantPreview({
 
 function createOwnershipEventColumns(
   onParticipantClick: (profile: PlayerDisplayInfo) => void,
+  onDeleteEvent: (eventId: string, eventName: string) => void,
 ): ColumnDef<OwnershipEventRow>[] {
   return [
     {
@@ -260,6 +264,28 @@ function createOwnershipEventColumns(
       sortingFn: (a, b) =>
         a.original.occurredTimestamp - b.original.occurredTimestamp,
     },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const handleDelete = () => {
+          const eventName = `${ACTION_LABELS[row.original.action]} - ${row.original.itemName}`
+          onDeleteEvent(row.original.id, eventName)
+        }
+
+        return (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleDelete}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            aria-label={`Delete ${ACTION_LABELS[row.original.action]} event`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )
+      },
+    },
   ]
 }
 
@@ -275,6 +301,19 @@ export function EventsPage() {
   const [actionFilter, setActionFilter] = React.useState<
     OwnershipAction | "all"
   >("all")
+  
+  // Delete confirmation dialog state
+  const [deleteDialog, setDeleteDialog] = React.useState<{
+    open: boolean
+    eventId: string | null
+    eventName: string
+    isDeleting: boolean
+  }>({
+    open: false,
+    eventId: null,
+    eventName: "",
+    isDeleting: false,
+  })
 
   // Use the data loader hook for managing loading states
   const dataLoader = useDataLoader(async () => {
@@ -338,9 +377,52 @@ export function EventsPage() {
     [playerLookup, playerProfile],
   )
 
+  const handleDeleteEvent = React.useCallback(
+    (eventId: string, eventName: string) => {
+      setDeleteDialog({
+        open: true,
+        eventId,
+        eventName,
+        isDeleting: false,
+      })
+    },
+    [],
+  )
+
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (!deleteDialog.eventId) return
+
+    setDeleteDialog(prev => ({ ...prev, isDeleting: true }))
+
+    try {
+      await deleteOwnershipEvent(deleteDialog.eventId)
+      setDeleteDialog({
+        open: false,
+        eventId: null,
+        eventName: "",
+        isDeleting: false,
+      })
+      // Refresh the data
+      void dataLoader.refresh()
+    } catch (error) {
+      console.error("Failed to delete ownership event:", error)
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
+      // You might want to show a toast notification here
+    }
+  }, [deleteDialog.eventId, dataLoader])
+
+  const handleCancelDelete = React.useCallback(() => {
+    setDeleteDialog({
+      open: false,
+      eventId: null,
+      eventName: "",
+      isDeleting: false,
+    })
+  }, [])
+
   const columns = React.useMemo(
-    () => createOwnershipEventColumns(handleParticipantClick),
-    [handleParticipantClick],
+    () => createOwnershipEventColumns(handleParticipantClick, handleDeleteEvent),
+    [handleParticipantClick, handleDeleteEvent],
   )
 
   const cosmeticLookup = React.useMemo(() => {
@@ -641,6 +723,16 @@ export function EventsPage() {
         player={playerProfile.selectedPlayer}
         open={playerProfile.isProfileOpen}
         onOpenChange={playerProfile.handleOpenChange}
+      />
+      
+      <DeleteConfirmationDialog
+        open={deleteDialog.open}
+        onOpenChange={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+        title="Delete Ownership Event"
+        description="Are you sure you want to delete this ownership event? This action cannot be undone."
+        itemName={deleteDialog.eventName}
+        isDeleting={deleteDialog.isDeleting}
       />
     </>
   )

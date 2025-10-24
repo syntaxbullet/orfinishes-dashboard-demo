@@ -868,3 +868,41 @@ export async function fetchItemOwnershipSnapshots(): Promise<
 
   return results;
 }
+
+export async function deleteOwnershipEvent(
+  id: string,
+): Promise<void> {
+  const normalizedId = id.trim();
+  
+  const { error } = await supabase
+    .from("ownership_events")
+    .delete()
+    .eq("id", normalizedId);
+
+  if (error) {
+    raise(error);
+  }
+
+  invalidateCache("ownershipEvents");
+  invalidateCache("ownershipEventsForItem");
+}
+
+export async function deleteItem(
+  id: string,
+): Promise<void> {
+  const normalizedId = id.trim();
+  
+  const { error } = await supabase
+    .from("items")
+    .delete()
+    .eq("id", normalizedId);
+
+  if (error) {
+    raise(error);
+  }
+
+  invalidateCache("items");
+  invalidateCache("itemsByIds");
+  invalidateCache("ownershipEvents");
+  invalidateCache("ownershipEventsForItem");
+}

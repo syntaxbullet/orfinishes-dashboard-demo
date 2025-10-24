@@ -1,6 +1,6 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Loader2 } from "lucide-react"
+import { Loader2, Trash2 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { ItemDetailSheet } from "@/components/item-detail-sheet"
@@ -8,6 +8,8 @@ import { PlayerAvatar } from "@/components/player-avatar"
 import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } from "@/components/data-table-toolbar"
+import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
+import { Button } from "@/components/ui/button"
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateFormatter } from "@/lib/formatters"
@@ -18,6 +20,7 @@ import {
   fetchItemsCount,
   fetchCosmeticsByIds,
   fetchPlayers,
+  deleteItem,
   type CosmeticRecord,
   type ItemRecord,
   type PlayerRecord,
@@ -49,6 +52,7 @@ const OWNERSHIP_STATUS_OPTIONS = [
 function createItemColumns(
   onPlayerClick: (player: PlayerRecord) => void,
   onItemClick: (item: ItemRecord) => void,
+  onDeleteItem: (itemId: string, itemName: string) => void,
   items: ItemRecord[],
   playerLookup: Map<string, PlayerRecord>,
 ): ColumnDef<ItemRow>[] {
@@ -212,6 +216,28 @@ function createItemColumns(
       },
       sortingFn: (a, b) => a.original.unboxedTimestamp - b.original.unboxedTimestamp,
     },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => {
+        const handleDelete = () => {
+          const itemName = `${row.original.cosmeticName} (${row.original.finishType})`
+          onDeleteItem(row.original.id, itemName)
+        }
+
+        return (
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            onClick={handleDelete}
+            className="text-destructive hover:text-destructive hover:bg-destructive/10"
+            aria-label={`Delete item ${row.original.cosmeticName}`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </Button>
+        )
+      },
+    },
   ]
 }
 
@@ -220,6 +246,19 @@ export function ItemsPage() {
   const [selectedItem, setSelectedItem] = React.useState<ItemRecord | null>(null)
   const [isItemSheetOpen, setIsItemSheetOpen] = React.useState(false)
   const [timeReference, setTimeReference] = React.useState(() => Date.now())
+  
+  // Delete confirmation dialog state
+  const [deleteDialog, setDeleteDialog] = React.useState<{
+    open: boolean
+    itemId: string | null
+    itemName: string
+    isDeleting: boolean
+  }>({
+    open: false,
+    itemId: null,
+    itemName: "",
+    isDeleting: false,
+  })
 
   // Use the data loader hook for managing loading states
   const dataLoader = useDataLoader(async () => {
@@ -288,9 +327,52 @@ export function ItemsPage() {
     [],
   )
 
+  const handleDeleteItem = React.useCallback(
+    (itemId: string, itemName: string) => {
+      setDeleteDialog({
+        open: true,
+        itemId,
+        itemName,
+        isDeleting: false,
+      })
+    },
+    [],
+  )
+
+  const handleConfirmDelete = React.useCallback(async () => {
+    if (!deleteDialog.itemId) return
+
+    setDeleteDialog(prev => ({ ...prev, isDeleting: true }))
+
+    try {
+      await deleteItem(deleteDialog.itemId)
+      setDeleteDialog({
+        open: false,
+        itemId: null,
+        itemName: "",
+        isDeleting: false,
+      })
+      // Refresh the data
+      void dataLoader.refresh()
+    } catch (error) {
+      console.error("Failed to delete item:", error)
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
+      // You might want to show a toast notification here
+    }
+  }, [deleteDialog.itemId, dataLoader])
+
+  const handleCancelDelete = React.useCallback(() => {
+    setDeleteDialog({
+      open: false,
+      itemId: null,
+      itemName: "",
+      isDeleting: false,
+    })
+  }, [])
+
   const columns = React.useMemo(
-    () => createItemColumns(handlePlayerClick, handleItemClick, items, playerLookup),
-    [handlePlayerClick, handleItemClick, items, playerLookup],
+    () => createItemColumns(handlePlayerClick, handleItemClick, handleDeleteItem, items, playerLookup),
+    [handlePlayerClick, handleItemClick, handleDeleteItem, items, playerLookup],
   )
 
   const tableData = React.useMemo<ItemRow[]>(() => {
@@ -570,6 +652,16 @@ export function ItemsPage() {
         item={selectedItem}
         open={isItemSheetOpen}
         onOpenChange={handleItemSheetChange}
+      />
+      
+      <DeleteConfirmationDialog
+        open={deleteDialog.open}
+        onOpenChange={handleCancelDelete}
+        onConfirm={handleConfirmDelete}
+        title="Delete Item"
+        description="Are you sure you want to delete this item? This will also delete all associated ownership events. This action cannot be undone."
+        itemName={deleteDialog.itemName}
+        isDeleting={deleteDialog.isDeleting}
       />
     </>
   )
