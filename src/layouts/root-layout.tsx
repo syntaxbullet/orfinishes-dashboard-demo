@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Outlet, useLocation } from "react-router-dom";
+import { Plus } from "lucide-react";
 
 import { AppSidebar } from "@/components/app-sidebar";
 import { LogEventSheet } from "@/components/log-event-sheet";
@@ -46,16 +47,18 @@ export function RootLayout() {
             <div className="flex items-center gap-2">
               <Button 
                 size="sm" 
-                className="hidden sm:inline-flex"
+                className="hidden sm:inline-flex bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                 onClick={() => setIsLogEventSheetOpen(true)}
               >
+                <Plus className="mr-2 h-4 w-4" />
                 Log Event
               </Button>
               <Button 
                 size="sm" 
-                className="sm:hidden"
+                className="sm:hidden bg-primary hover:bg-primary/90 text-primary-foreground shadow-sm"
                 onClick={() => setIsLogEventSheetOpen(true)}
               >
+                <Plus className="mr-2 h-4 w-4" />
                 Log
               </Button>
               <ThemeToggle />

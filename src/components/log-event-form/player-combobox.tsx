@@ -65,7 +65,7 @@ export function PlayerCombobox({
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between"
+          className="w-full justify-between h-12 px-3"
           disabled={disabled}
         >
           {selectedDisplayInfo ? (
@@ -79,7 +79,7 @@ export function PlayerCombobox({
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-full p-0" align="start">
+      <PopoverContent className="w-full p-0" align="start" sideOffset={4}>
         <Command>
           <CommandInput placeholder="Search players..." />
           <CommandList>
