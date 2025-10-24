@@ -1,5 +1,5 @@
 import * as React from "react"
-import { Loader2, Plus, Sparkles, Gift, ArrowRightLeft, X } from "lucide-react"
+import { Loader2, Plus, Sparkles, Gift, ArrowRightLeft, X, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -71,6 +71,20 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
     }
   }, [open])
 
+  const handleRefresh = () => {
+    // Clear form and errors to force fresh data loading
+    setFormData({
+      action: "",
+      itemId: "",
+      cosmeticId: "",
+      finishType: "",
+      fromPlayer: "",
+      toPlayer: "",
+      occurredAt: new Date().toISOString().slice(0, 16),
+    })
+    setErrors([])
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrors([])
@@ -93,6 +107,14 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
     setIsSubmitting(true)
 
     try {
+      // For unbox/grant actions, we need to create the item first
+      if (isUnboxOrGrant) {
+        // TODO: Implement item creation for unbox/grant actions
+        // For now, show an error that this feature needs to be implemented
+        setErrors(["Creating new items (unbox/grant) is not yet implemented. Please use transfer/revoke for existing items."])
+        return
+      }
+
       const eventData = {
         item_id: formData.itemId,
         action: formData.action as OwnershipAction,
@@ -107,7 +129,23 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
       onOpenChange(false)
     } catch (error) {
       console.error("Failed to create ownership event:", error)
-      setErrors(["Failed to create event. Please try again."])
+      
+      // Parse error message for better user feedback
+      let errorMessage = "Failed to create event. Please try again."
+      
+      if (error instanceof Error) {
+        if (error.message.includes("invalid input syntax for type uuid")) {
+          errorMessage = "One or more selected items have invalid IDs. Please refresh and try again."
+        } else if (error.message.includes("foreign key constraint")) {
+          errorMessage = "Selected item or player no longer exists. Please refresh and try again."
+        } else if (error.message.includes("duplicate key")) {
+          errorMessage = "This event already exists. Please check your data and try again."
+        } else {
+          errorMessage = `Error: ${error.message}`
+        }
+      }
+      
+      setErrors([errorMessage])
     } finally {
       setIsSubmitting(false)
     }
@@ -263,7 +301,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
             <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-4">
               <div className="flex items-start gap-2">
                 <X className="h-4 w-4 text-destructive mt-0.5 flex-shrink-0" />
-                <div>
+                <div className="flex-1">
                   <h4 className="text-sm font-medium text-destructive">Please fix the following errors:</h4>
                   <ul className="mt-2 space-y-1">
                     {errors.map((error, index) => (
@@ -272,6 +310,18 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                       </li>
                     ))}
                   </ul>
+                  {errors.some(error => error.includes("refresh") || error.includes("stale")) && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={handleRefresh}
+                      className="mt-3 h-8"
+                    >
+                      <RefreshCw className="mr-2 h-3 w-3" />
+                      Refresh Data
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>

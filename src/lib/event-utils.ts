@@ -34,6 +34,14 @@ export function formatItemForDisplay(
 }
 
 /**
+ * Validate UUID format
+ */
+function isValidUUID(uuid: string): boolean {
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i
+  return uuidRegex.test(uuid)
+}
+
+/**
  * Validate event data before submission
  */
 export function validateEventData(data: {
@@ -51,23 +59,40 @@ export function validateEventData(data: {
   }
   
   if (data.action === "transfer" || data.action === "revoke") {
-    if (!data.itemId) {
+    if (!data.itemId || data.itemId.trim() === "") {
       errors.push("Item selection is required for transfer/revoke actions")
+    } else if (!isValidUUID(data.itemId)) {
+      errors.push("Selected item has an invalid ID")
     }
-    if (data.action === "transfer" && !data.toPlayer) {
-      errors.push("Recipient player is required for transfer")
+    
+    if (data.action === "transfer") {
+      if (!data.toPlayer || data.toPlayer.trim() === "") {
+        errors.push("Recipient player is required for transfer")
+      } else if (!isValidUUID(data.toPlayer)) {
+        errors.push("Selected recipient player has an invalid ID")
+      }
+    }
+    
+    if (data.fromPlayer && data.fromPlayer.trim() !== "" && !isValidUUID(data.fromPlayer)) {
+      errors.push("Selected from player has an invalid ID")
     }
   }
   
   if (data.action === "unbox" || data.action === "grant") {
-    if (!data.cosmeticId) {
+    if (!data.cosmeticId || data.cosmeticId.trim() === "") {
       errors.push("Cosmetic selection is required for unbox/grant actions")
+    } else if (!isValidUUID(data.cosmeticId)) {
+      errors.push("Selected cosmetic has an invalid ID")
     }
-    if (!data.finishType) {
+    
+    if (!data.finishType || data.finishType.trim() === "") {
       errors.push("Finish type is required for unbox/grant actions")
     }
-    if (!data.toPlayer) {
+    
+    if (!data.toPlayer || data.toPlayer.trim() === "") {
       errors.push("Recipient player is required for unbox/grant actions")
+    } else if (!isValidUUID(data.toPlayer)) {
+      errors.push("Selected recipient player has an invalid ID")
     }
   }
   
