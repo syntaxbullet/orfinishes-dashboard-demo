@@ -142,6 +142,14 @@ export type ItemRecord = {
   minted_at: string | null;
 };
 
+export type ItemInsert = {
+  cosmetic: string;
+  finish_type: string;
+  current_owner?: string | null;
+  minted_by?: string | null;
+  minted_at?: string;
+};
+
 export type OwnershipAction = "grant" | "transfer" | "unbox" | "revoke";
 
 export type OwnershipEventRecord = {
@@ -612,6 +620,32 @@ export async function fetchOwnershipEvents(
     },
     { forceRefresh },
   );
+}
+
+export async function createItem(
+  payload: ItemInsert,
+): Promise<ItemRecord> {
+  const normalized: ItemInsert = {
+    cosmetic: payload.cosmetic,
+    finish_type: payload.finish_type,
+    current_owner: payload.current_owner ?? null,
+    minted_by: payload.minted_by ?? null,
+    minted_at: payload.minted_at,
+  };
+
+  const response = await supabase
+    .from("items")
+    .insert(normalized)
+    .select("*")
+    .returns<ItemRecord>()
+    .single();
+
+  const record = unwrap(response);
+
+  invalidateCache("items");
+  invalidateCache("itemsByIds");
+
+  return record;
 }
 
 export async function createOwnershipEvent(

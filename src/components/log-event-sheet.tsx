@@ -24,7 +24,7 @@ import { CosmeticCombobox } from "@/components/log-event-form/cosmetic-combobox"
 import { FinishTypeCombobox } from "@/components/log-event-form/finish-type-combobox"
 import { ItemSearchCombobox } from "@/components/log-event-form/item-search-combobox"
 import { ACTION_LABELS, ACTION_DESCRIPTIONS, validateEventData } from "@/lib/event-utils"
-import { createOwnershipEvent, type OwnershipAction } from "@/utils/supabase"
+import { createItem, createOwnershipEvent, type OwnershipAction } from "@/utils/supabase"
 
 interface LogEventSheetProps {
   open: boolean
@@ -107,16 +107,24 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
     setIsSubmitting(true)
 
     try {
+      let itemId = formData.itemId
+
       // For unbox/grant actions, we need to create the item first
       if (isUnboxOrGrant) {
-        // TODO: Implement item creation for unbox/grant actions
-        // For now, show an error that this feature needs to be implemented
-        setErrors(["Creating new items (unbox/grant) is not yet implemented. Please use transfer/revoke for existing items."])
-        return
+        const itemData = {
+          cosmetic: formData.cosmeticId,
+          finish_type: formData.finishType,
+          current_owner: formData.toPlayer,
+          minted_by: formData.toPlayer,
+          minted_at: formData.occurredAt,
+        }
+
+        const newItem = await createItem(itemData)
+        itemId = newItem.id
       }
 
       const eventData = {
-        item_id: formData.itemId,
+        item_id: itemId,
         action: formData.action as OwnershipAction,
         from_player: formData.fromPlayer || null,
         to_player: formData.toPlayer || null,
