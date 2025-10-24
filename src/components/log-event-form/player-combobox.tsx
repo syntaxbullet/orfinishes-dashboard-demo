@@ -25,6 +25,12 @@ interface PlayerComboboxProps {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  onSelectionChange?: (selection: PlayerSelection | null) => void
+}
+
+export type PlayerSelection = {
+  record: PlayerRecord
+  displayInfo: PlayerDisplayInfo
 }
 
 export function PlayerCombobox({
@@ -32,6 +38,7 @@ export function PlayerCombobox({
   onValueChange,
   placeholder = "Select player...",
   disabled = false,
+  onSelectionChange,
 }: PlayerComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [players, setPlayers] = React.useState<PlayerRecord[]>([])
@@ -58,6 +65,21 @@ export function PlayerCombobox({
     return createPlayerDisplayInfo(selectedPlayer, 32)
   }, [selectedPlayer])
 
+  const handleSelection = React.useCallback(
+    (player: PlayerRecord | null) => {
+      if (!player) {
+        onSelectionChange?.(null)
+        onValueChange("")
+        return
+      }
+
+      const displayInfo = createPlayerDisplayInfo(player, 32)
+      onSelectionChange?.({ record: player, displayInfo })
+      onValueChange(player.id)
+    },
+    [onSelectionChange, onValueChange],
+  )
+
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
@@ -83,6 +105,20 @@ export function PlayerCombobox({
         <Command>
           <CommandInput placeholder="Search players..." />
           <CommandList>
+            {value ? (
+              <CommandGroup heading="Actions">
+                <CommandItem
+                  value="clear-player-selection"
+                  onSelect={() => {
+                    handleSelection(null)
+                    setOpen(false)
+                  }}
+                >
+                  <Check className="mr-2 h-4 w-4 opacity-0" />
+                  <span className="text-destructive">Clear selection</span>
+                </CommandItem>
+              </CommandGroup>
+            ) : null}
             {loading ? (
               <CommandEmpty>Loading players...</CommandEmpty>
             ) : (
@@ -96,7 +132,7 @@ export function PlayerCombobox({
                         key={player.id}
                         value={`${player.display_name || ""} ${player.minecraft_uuid}`}
                         onSelect={() => {
-                          onValueChange(player.id)
+                          handleSelection(player)
                           setOpen(false)
                         }}
                       >

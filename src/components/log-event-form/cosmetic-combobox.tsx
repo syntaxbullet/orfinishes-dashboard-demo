@@ -23,6 +23,7 @@ interface CosmeticComboboxProps {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  onSelectionChange?: (cosmetic: CosmeticRecord | null) => void
 }
 
 export function CosmeticCombobox({
@@ -30,6 +31,7 @@ export function CosmeticCombobox({
   onValueChange,
   placeholder = "Select cosmetic...",
   disabled = false,
+  onSelectionChange,
 }: CosmeticComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [cosmetics, setCosmetics] = React.useState<CosmeticRecord[]>([])
@@ -81,12 +83,28 @@ export function CosmeticCombobox({
             ) : (
               <>
                 <CommandEmpty>No cosmetics found.</CommandEmpty>
+                {value ? (
+                  <CommandGroup heading="Actions">
+                    <CommandItem
+                      value="clear-cosmetic-selection"
+                      onSelect={() => {
+                        onSelectionChange?.(null)
+                        onValueChange("")
+                        setOpen(false)
+                      }}
+                    >
+                      <Check className="mr-2 h-4 w-4 opacity-0" />
+                      <span className="text-destructive">Clear selection</span>
+                    </CommandItem>
+                  </CommandGroup>
+                ) : null}
                 <CommandGroup>
                   {cosmetics.map((cosmetic) => (
                     <CommandItem
                       key={cosmetic.id}
                       value={`${cosmetic.name} ${cosmetic.type}`}
                       onSelect={() => {
+                        onSelectionChange?.(cosmetic)
                         onValueChange(cosmetic.id)
                         setOpen(false)
                       }}

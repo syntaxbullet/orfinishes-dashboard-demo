@@ -25,9 +25,10 @@ interface ItemSearchComboboxProps {
   onValueChange: (value: string) => void
   placeholder?: string
   disabled?: boolean
+  onSelectionChange?: (item: ItemWithMetadata | null) => void
 }
 
-type ItemWithMetadata = {
+export type ItemWithMetadata = {
   item: ItemRecord
   cosmetic: CosmeticRecord | null
   owner: PlayerRecord | null
@@ -38,6 +39,7 @@ export function ItemSearchCombobox({
   onValueChange,
   placeholder = "Search items...",
   disabled = false,
+  onSelectionChange,
 }: ItemSearchComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [items, setItems] = React.useState<ItemWithMetadata[]>([])
@@ -121,6 +123,21 @@ export function ItemSearchCombobox({
             ) : (
               <>
                 <CommandEmpty>No items found.</CommandEmpty>
+                {value ? (
+                  <CommandGroup heading="Actions">
+                    <CommandItem
+                      value="clear-item-selection"
+                      onSelect={() => {
+                        onSelectionChange?.(null)
+                        onValueChange("")
+                        setOpen(false)
+                      }}
+                    >
+                      <Check className="mr-2 h-4 w-4 opacity-0" />
+                      <span className="text-destructive">Clear selection</span>
+                    </CommandItem>
+                  </CommandGroup>
+                ) : null}
                 <CommandGroup>
                   {items.map((itemWithMetadata) => {
                     const { item, cosmetic, owner } = itemWithMetadata
@@ -131,6 +148,7 @@ export function ItemSearchCombobox({
                         key={item.id}
                         value={displayText}
                         onSelect={() => {
+                          onSelectionChange?.(itemWithMetadata)
                           onValueChange(item.id)
                           setOpen(false)
                         }}
