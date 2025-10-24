@@ -1,4 +1,4 @@
-import { timeWindows, isWithinTimeWindow, parseTimestamp } from "./time-utils"
+import { isWithinTimeWindow, parseTimestamp } from "./time-utils"
 import { type OwnershipEventRecord, type PlayerRecord, type ItemOwnershipSnapshot } from "@/utils/supabase"
 
 export interface TrendData {

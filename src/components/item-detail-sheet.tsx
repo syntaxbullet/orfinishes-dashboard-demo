@@ -230,14 +230,14 @@ export function ItemDetailSheet({
     <>
       <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent className="sm:max-w-xl">
-          <SheetHeader className="gap-4 p-4 pb-0">
-            <div className="flex items-start gap-4">
-              <div className="flex h-16 w-16 items-center justify-center rounded-lg border border-border bg-muted">
-                <Package className="h-8 w-8 text-muted-foreground" />
+          <SheetHeader className="gap-3 sm:gap-4 p-3 sm:p-4 pb-0">
+            <div className="flex items-start gap-3 sm:gap-4">
+              <div className="flex h-12 w-12 sm:h-16 sm:w-16 items-center justify-center rounded-lg border border-border bg-muted flex-shrink-0">
+                <Package className="h-6 w-6 sm:h-8 sm:w-8 text-muted-foreground" />
               </div>
 
-              <div className="flex flex-1 flex-col gap-1.5">
-                <SheetTitle className="text-2xl font-semibold text-foreground">
+              <div className="flex flex-1 flex-col gap-1 sm:gap-1.5 min-w-0">
+                <SheetTitle className="text-lg sm:text-2xl font-semibold text-foreground truncate">
                   {cosmetic?.name || "Unknown Item"}
                 </SheetTitle>
                 <SheetDescription className="text-xs">
@@ -262,8 +262,8 @@ export function ItemDetailSheet({
             </div>
           </SheetHeader>
 
-          <div className="p-4 pt-3">
-            <div className="grid gap-3 sm:grid-cols-3">
+          <div className="p-3 sm:p-4 pt-3">
+            <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
               {stats.map((stat) => {
                 const Icon = stat.icon
 
@@ -303,13 +303,13 @@ export function ItemDetailSheet({
                         handlePlayerClick(player)
                       }
                     }}
-                    className="mt-2 flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                    className="mt-2 flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 min-w-0"
                     aria-label={`Open profile for ${currentOwner.displayName}`}
                   >
-                    <PlayerAvatar profile={currentOwner} size="md" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">{currentOwner.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{currentOwner.id}</p>
+                    <PlayerAvatar profile={currentOwner} size="md" className="flex-shrink-0" />
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{currentOwner.displayName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{currentOwner.id}</p>
                     </div>
                   </button>
                 ) : (
@@ -328,13 +328,13 @@ export function ItemDetailSheet({
                         handlePlayerClick(player)
                       }
                     }}
-                    className="mt-2 flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+                    className="mt-2 flex w-full items-center gap-3 rounded-md border border-transparent p-2 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 min-w-0"
                     aria-label={`Open profile for ${unboxedBy.displayName}`}
                   >
-                    <PlayerAvatar profile={unboxedBy} size="md" />
-                    <div className="space-y-1">
-                      <p className="text-sm font-medium text-foreground">{unboxedBy.displayName}</p>
-                      <p className="text-xs text-muted-foreground">{unboxedBy.id}</p>
+                    <PlayerAvatar profile={unboxedBy} size="md" className="flex-shrink-0" />
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <p className="text-sm font-medium text-foreground truncate">{unboxedBy.displayName}</p>
+                      <p className="text-xs text-muted-foreground truncate">{unboxedBy.id}</p>
                     </div>
                   </button>
                 </div>
@@ -383,8 +383,8 @@ export function ItemDetailSheet({
 
                           <div className="mt-2 space-y-2">
                             {fromProfile && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">From:</span>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs text-muted-foreground flex-shrink-0">From:</span>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -393,17 +393,17 @@ export function ItemDetailSheet({
                                       handlePlayerClick(player)
                                     }
                                   }}
-                                  className="flex items-center gap-2 rounded border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40"
+                                  className="flex items-center gap-2 rounded border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40 min-w-0 flex-1"
                                 >
-                                  <PlayerAvatar profile={fromProfile} size="sm" />
-                                  <span className="text-xs font-medium">{fromProfile.displayName}</span>
+                                  <PlayerAvatar profile={fromProfile} size="sm" className="flex-shrink-0" />
+                                  <span className="text-xs font-medium truncate">{fromProfile.displayName}</span>
                                 </button>
                               </div>
                             )}
 
                             {toProfile && (
-                              <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground">To:</span>
+                              <div className="flex items-center gap-2 min-w-0">
+                                <span className="text-xs text-muted-foreground flex-shrink-0">To:</span>
                                 <button
                                   type="button"
                                   onClick={() => {
@@ -412,10 +412,10 @@ export function ItemDetailSheet({
                                       handlePlayerClick(player)
                                     }
                                   }}
-                                  className="flex items-center gap-2 rounded border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40"
+                                  className="flex items-center gap-2 rounded border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40 min-w-0 flex-1"
                                 >
-                                  <PlayerAvatar profile={toProfile} size="sm" />
-                                  <span className="text-xs font-medium">{toProfile.displayName}</span>
+                                  <PlayerAvatar profile={toProfile} size="sm" className="flex-shrink-0" />
+                                  <span className="text-xs font-medium truncate">{toProfile.displayName}</span>
                                 </button>
                               </div>
                             )}

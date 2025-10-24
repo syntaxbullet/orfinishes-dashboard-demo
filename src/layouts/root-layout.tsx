@@ -1,6 +1,8 @@
+import * as React from "react";
 import { Outlet, useLocation } from "react-router-dom";
 
 import { AppSidebar } from "@/components/app-sidebar";
+import { LogEventSheet } from "@/components/log-event-sheet";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
@@ -12,6 +14,7 @@ import { allNavigationItems } from "@/config/navigation";
 
 export function RootLayout() {
   const location = useLocation();
+  const [isLogEventSheetOpen, setIsLogEventSheetOpen] = React.useState(false);
 
   const activeItem =
     allNavigationItems.find((item) =>
@@ -30,8 +33,8 @@ export function RootLayout() {
       <AppSidebar />
       <SidebarInset className="bg-background">
         <div className="flex min-h-svh flex-col text-foreground transition-colors">
-          <header className="flex h-16 items-center justify-between gap-2 border-b border-border bg-background/80 px-6 backdrop-blur sm:px-8">
-            <div className="flex items-center gap-4">
+          <header className="flex h-32 sm:h-20 items-center justify-between gap-2 border-b border-border bg-background/80 px-3 backdrop-blur sm:px-6 lg:px-8">
+            <div className="flex items-center gap-3 sm:gap-4">
               <SidebarTrigger className="md:hidden" />
               <div className="space-y-1">
                 <p className="text-sm font-semibold leading-none tracking-tight">
@@ -41,7 +44,20 @@ export function RootLayout() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button size="sm">Log Event</Button>
+              <Button 
+                size="sm" 
+                className="hidden sm:inline-flex"
+                onClick={() => setIsLogEventSheetOpen(true)}
+              >
+                Log Event
+              </Button>
+              <Button 
+                size="sm" 
+                className="sm:hidden"
+                onClick={() => setIsLogEventSheetOpen(true)}
+              >
+                Log
+              </Button>
               <ThemeToggle />
             </div>
           </header>
@@ -50,6 +66,10 @@ export function RootLayout() {
           </main>
         </div>
       </SidebarInset>
+      <LogEventSheet 
+        open={isLogEventSheetOpen} 
+        onOpenChange={setIsLogEventSheetOpen} 
+      />
     </SidebarProvider>
   );
 }

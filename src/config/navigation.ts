@@ -1,12 +1,8 @@
 import type { LucideIcon } from "lucide-react";
 import {
   Activity,
-  Boxes,
-  FileText,
   LayoutDashboard,
-  LifeBuoy,
   Package,
-  Settings,
   Sparkles,
   Users,
 } from "lucide-react";

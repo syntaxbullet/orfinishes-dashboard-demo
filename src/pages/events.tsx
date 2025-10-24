@@ -2,9 +2,7 @@ import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
 
-import { Button } from "@/components/ui/button"
 import { DataTable } from "@/components/ui/data-table"
-import { Input } from "@/components/ui/input"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { PlayerAvatar } from "@/components/player-avatar"
 import { StatCard } from "@/components/stat-card"
@@ -13,7 +11,7 @@ import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } 
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
-import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
+import { createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
 import {
   fetchCosmeticsByIds,
@@ -23,7 +21,6 @@ import {
   type CosmeticRecord,
   type ItemRecord,
   type OwnershipAction,
-  type OwnershipEventRecord,
   type PlayerRecord,
 } from "@/utils/supabase"
 
@@ -111,7 +108,7 @@ function ParticipantAvatar({
 }: {
   profile: PlayerDisplayInfo
 }) {
-  return <PlayerAvatar profile={profile} size="sm" className="rounded-full" />
+  return <PlayerAvatar profile={profile} className="rounded" />
 }
 
 function ParticipantPreview({
@@ -435,7 +432,6 @@ export function EventsPage() {
     })
   }, [events, itemLookup, playerLookup])
 
-  const isProfileSheetOpen = Boolean(playerProfile.selectedPlayer) && playerProfile.isProfileOpen
 
   const filteredEvents = React.useMemo(() => {
     if (actionFilter === "all") {
@@ -540,18 +536,18 @@ export function EventsPage() {
 
   return (
     <>
-      <section className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+      <section className="space-y-4 sm:space-y-6 px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
+      <header className="space-y-1 sm:space-y-2">
+        <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
           Ownership Events
         </h1>
-        <p className="text-sm text-muted-foreground">
+        <p className="text-xs sm:text-sm text-muted-foreground">
           Review the event ledger for grants, transfers, unboxes, and revokes
           sourced from `public.ownership_events`.
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
         {statCards.map((card) => (
           <StatCard
             key={card.label}

@@ -1,8 +1,6 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
-import { Loader2, Boxes } from "lucide-react"
-
-import { Button } from "@/components/ui/button"
+import { Loader2 } from "lucide-react"
 import { DataTable } from "@/components/ui/data-table"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { ItemDetailSheet } from "@/components/item-detail-sheet"
@@ -121,7 +119,7 @@ function createItemColumns(
             className="flex w-full items-center gap-2 rounded-md border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             aria-label={`Open profile for ${owner.displayName}`}
           >
-            <PlayerAvatar profile={owner} size="sm" />
+            <PlayerAvatar profile={owner}/>
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">{owner.displayName}</p>
               <p className="text-xs text-muted-foreground">{owner.id}</p>
@@ -158,7 +156,7 @@ function createItemColumns(
             className="flex w-full items-center gap-2 rounded-md border border-transparent p-1 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
             aria-label={`Open profile for ${unboxer.displayName}`}
           >
-            <PlayerAvatar profile={unboxer} size="sm" />
+            <PlayerAvatar profile={unboxer} />
             <div className="space-y-1">
               <p className="text-sm font-medium text-foreground">{unboxer.displayName}</p>
               <p className="text-xs text-muted-foreground">{unboxer.id}</p>
@@ -221,6 +219,7 @@ export function ItemsPage() {
   const [ownershipFilter, setOwnershipFilter] = React.useState<string>("all")
   const [selectedItem, setSelectedItem] = React.useState<ItemRecord | null>(null)
   const [isItemSheetOpen, setIsItemSheetOpen] = React.useState(false)
+  const [timeReference, setTimeReference] = React.useState(() => Date.now())
 
   // Use the data loader hook for managing loading states
   const dataLoader = useDataLoader(async () => {
@@ -307,14 +306,14 @@ export function ItemsPage() {
         ? createPlayerDisplayInfo(currentOwner, ITEM_AVATAR_SIZE)
         : null
 
-      const unboxedBy = item.unboxed_by
-        ? resolvePlayerByIdentifier(item.unboxed_by, playerLookup)
+      const unboxedBy = item.minted_by
+        ? resolvePlayerByIdentifier(item.minted_by, playerLookup)
         : null
       const unboxedByProfile = unboxedBy
         ? createPlayerDisplayInfo(unboxedBy, ITEM_AVATAR_SIZE)
         : null
 
-      const unboxedTimestamp = item.unboxed_at ? Date.parse(item.unboxed_at) : -Infinity
+      const unboxedTimestamp = item.minted_at ? Date.parse(item.minted_at) : -Infinity
       const ownershipStatus = item.current_owner ? "Owned" : "Unassigned"
 
       const searchTokens = [
@@ -335,7 +334,7 @@ export function ItemsPage() {
         finishType: item.finish_type || "Unknown",
         currentOwner: currentOwnerProfile,
         unboxedBy: unboxedByProfile,
-        unboxedAt: item.unboxed_at,
+        unboxedAt: item.minted_at,
         unboxedTimestamp: Number.isNaN(unboxedTimestamp) ? -Infinity : unboxedTimestamp,
         ownershipStatus,
         createdAt: item.created_at,
@@ -353,6 +352,10 @@ export function ItemsPage() {
     }
     return tableData.filter((item) => item.ownershipStatus === ownershipFilter)
   }, [ownershipFilter, tableData])
+
+  React.useEffect(() => {
+    setTimeReference(Date.now())
+  }, [tableData])
 
   const statCards = React.useMemo(() => {
     if (!tableData.length && totalCount === 0) {
@@ -412,7 +415,7 @@ export function ItemsPage() {
     const ownershipCoverage = totalItems > 0 ? ownedItems / totalItems : 0
 
     // Calculate recent unboxes (last 7 days)
-    const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+    const sevenDaysAgo = timeReference - 7 * 24 * 60 * 60 * 1000
     const recentUnboxes = tableData.filter(
       (item) => item.unboxedTimestamp > sevenDaysAgo,
     ).length
@@ -455,22 +458,22 @@ export function ItemsPage() {
           : "No finish types recorded",
       },
     ]
-  }, [tableData])
+  }, [tableData, timeReference, totalCount])
 
   return (
     <>
-      <section className="space-y-6 px-4 py-8 sm:px-6 lg:px-8">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+      <section className="space-y-4 sm:space-y-6 px-3 py-6 sm:px-4 sm:py-8 lg:px-8">
+        <header className="space-y-1 sm:space-y-2">
+          <h1 className="text-2xl sm:text-3xl font-semibold tracking-tight text-foreground">
             Items
           </h1>
-          <p className="text-sm text-muted-foreground">
+          <p className="text-xs sm:text-sm text-muted-foreground">
             Browse all unboxed items with their finish types and ownership status
             sourced from `public.items`.
           </p>
         </header>
 
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {statCards.map((card) => (
             <StatCard
               key={card.label}

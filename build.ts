@@ -33,9 +33,9 @@ Example:
   process.exit(0);
 }
 
-const toCamelCase = (str: string): string => str.replace(/-([a-z])/g, g => g[1].toUpperCase());
+const toCamelCase = (str: string): string => str.replace(/-([a-z])/g, g => g[1]!.toUpperCase());
 
-const parseValue = (value: string): any => {
+const parseValue = (value: string): unknown => {
   if (value === "true") return true;
   if (value === "false") return false;
 
@@ -47,8 +47,22 @@ const parseValue = (value: string): any => {
   return value;
 };
 
-function parseArgs(): Partial<Bun.BuildConfig> {
-  const config: Partial<Bun.BuildConfig> = {};
+type CliConfig = Partial<Bun.BuildConfig> & Record<string, unknown>;
+
+const ensureNestedObject = (target: CliConfig, key: string): Record<string, unknown> => {
+  const existing = target[key];
+
+  if (typeof existing === "object" && existing !== null && !Array.isArray(existing)) {
+    return existing as Record<string, unknown>;
+  }
+
+  const next: Record<string, unknown> = {};
+  target[key] = next;
+  return next;
+};
+
+function parseArgs(): CliConfig {
+  const config: CliConfig = {};
   const args = process.argv.slice(2);
 
   for (let i = 0; i < args.length; i++) {
@@ -81,9 +95,14 @@ function parseArgs(): Partial<Bun.BuildConfig> {
     key = toCamelCase(key);
 
     if (key.includes(".")) {
-      const [parentKey, childKey] = key.split(".");
-      config[parentKey] = config[parentKey] || {};
-      config[parentKey][childKey] = parseValue(value);
+      const [parentKey, childKey] = key.split(".", 2);
+      if (!childKey) {
+        config[parentKey!] = parseValue(value);
+        continue;
+      }
+
+      const parent = ensureNestedObject(config, parentKey!);
+      parent[childKey] = parseValue(value);
     } else {
       config[key] = parseValue(value);
     }

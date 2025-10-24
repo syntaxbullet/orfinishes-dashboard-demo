@@ -12,18 +12,16 @@ import {
 import { PlayerAvatar } from "@/components/player-avatar"
 import { PlayerStatusBadge } from "@/components/player-status-badge"
 import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
-import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
-import { cn } from "@/lib/utils"
+import { normalizeMinecraftUuid, createPlayerDisplayInfo } from "@/lib/player-utils"
 import {
-  fetchCosmeticsByIds,
-  fetchItems,
+  fetchItemOwnershipSnapshots,
   type CosmeticRecord,
-  type ItemRecord,
+  type ItemOwnershipSnapshot,
   type PlayerRecord,
 } from "@/utils/supabase"
 
 type OwnedFinish = {
-  item: ItemRecord
+  snapshot: ItemOwnershipSnapshot
   cosmetic: CosmeticRecord | null
 }
 
@@ -55,35 +53,19 @@ export function PlayerProfileSheet({
       setError(null)
 
       try {
-        const items = await fetchItems({ ownerId: player.id })
+        const snapshots = await fetchItemOwnershipSnapshots()
         if (cancelled) {
           return
         }
 
-        const uniqueCosmeticIds = Array.from(
-          new Set(
-            items
-              .map((item) => item.cosmetic?.trim())
-              .filter((value): value is string => Boolean(value)),
-          ),
+        // Filter snapshots for this player
+        const playerSnapshots = snapshots.filter(
+          (snapshot) => snapshot.latest_to_player_id?.trim() === player.id
         )
 
-        let cosmetics: CosmeticRecord[] = []
-
-        if (uniqueCosmeticIds.length) {
-          cosmetics = await fetchCosmeticsByIds(uniqueCosmeticIds)
-          if (cancelled) {
-            return
-          }
-        }
-
-        const cosmeticLookup = new Map(
-          cosmetics.map((cosmetic) => [cosmetic.id, cosmetic]),
-        )
-
-        const sortedItems = [...items].sort((left, right) => {
-          const leftDate = left.unboxed_at ?? left.updated_at ?? left.created_at
-          const rightDate = right.unboxed_at ?? right.updated_at ?? right.created_at
+        const sortedSnapshots = [...playerSnapshots].sort((left, right) => {
+          const leftDate = left.latest_occurred_at ?? left.created_at
+          const rightDate = right.latest_occurred_at ?? right.created_at
 
           const leftTimestamp = Date.parse(leftDate ?? "")
           const rightTimestamp = Date.parse(rightDate ?? "")
@@ -92,11 +74,9 @@ export function PlayerProfileSheet({
         })
 
         setOwnedFinishes(
-          sortedItems.map((item) => ({
-            item,
-            cosmetic: item.cosmetic
-              ? cosmeticLookup.get(item.cosmetic.trim()) ?? null
-              : null,
+          sortedSnapshots.map((snapshot) => ({
+            snapshot,
+            cosmetic: null, // We'll use snapshot.cosmetic_name directly
           })),
         )
       } catch (inventoryError) {
@@ -122,12 +102,8 @@ export function PlayerProfileSheet({
     return () => {
       cancelled = true
     }
-  }, [player?.id, open])
+  }, [player, open])
 
-  const avatarUrl = React.useMemo(
-    () => (player ? buildPlayerAvatarUrl(player, 112) : null),
-    [player],
-  )
 
   const stats = React.useMemo(() => {
     if (!player) {
@@ -137,15 +113,15 @@ export function PlayerProfileSheet({
     const totalOwned = ownedFinishes.length
     const uniqueFinishTypes = new Set(
       ownedFinishes
-        .map(({ item }) => item.finish_type?.trim().toLowerCase() || null)
+        .map(({ snapshot }) => snapshot.finish_type?.trim().toLowerCase() || null)
         .filter(Boolean),
     ).size
     const unboxedCount = ownedFinishes.filter(
-      ({ item }) => item.unboxed_by && item.unboxed_by === player.id,
+      ({ snapshot }) => snapshot.first_unbox_occurred_at && snapshot.first_unbox_to_player_id === player.id,
     ).length
     const latestUnboxTimestamp = ownedFinishes.reduce<number | null>(
-      (latest, { item }) => {
-        const timestamp = item.unboxed_at ? Date.parse(item.unboxed_at) : NaN
+      (latest, { snapshot }) => {
+        const timestamp = snapshot.first_unbox_occurred_at ? Date.parse(snapshot.first_unbox_occurred_at) : NaN
         if (Number.isNaN(timestamp)) {
           return latest
         }
@@ -205,30 +181,30 @@ export function PlayerProfileSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent className="sm:max-w-xl">
-        <SheetHeader className="gap-4 p-4 pb-0">
-          <div className="flex items-start gap-4">
-            <div className="relative">
+        <SheetHeader className="gap-3 sm:gap-4 p-3 sm:p-4 pb-0">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="relative flex-shrink-0">
               {player ? (
                 <PlayerAvatar 
                   profile={createPlayerDisplayInfo(player, 112)} 
                   size="xl" 
-                  className="rounded-lg"
+                  className="rounded-lg h-16 w-16 sm:h-20 sm:w-20"
                 />
               ) : (
-                <div className="flex h-20 w-20 items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted text-2xl font-semibold uppercase text-muted-foreground">
+                <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-lg border border-dashed border-muted-foreground/40 bg-muted text-xl sm:text-2xl font-semibold uppercase text-muted-foreground">
                   ?
                 </div>
               )}
             </div>
 
-            <div className="flex flex-1 flex-col gap-1.5">
-              <SheetTitle className="text-2xl font-semibold text-foreground">
+            <div className="flex flex-1 flex-col gap-1 sm:gap-1.5 min-w-0">
+              <SheetTitle className="text-lg sm:text-2xl font-semibold text-foreground truncate">
                 {player?.display_name?.trim() || "Unknown player"}
               </SheetTitle>
               <SheetDescription className="text-xs">
                 Minecraft UUID{" "}
                 {normalizedUuid ? (
-                  <code className="rounded bg-muted px-1.5 py-0.5 text-[11px]">
+                  <code className="rounded bg-muted px-1.5 py-0.5 text-[11px] break-all">
                     {normalizedUuid}
                   </code>
                 ) : (
@@ -242,8 +218,8 @@ export function PlayerProfileSheet({
           </div>
         </SheetHeader>
 
-        <div className="p-4 pt-3">
-          <div className="grid gap-3 sm:grid-cols-3">
+        <div className="p-3 sm:p-4 pt-3">
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-3">
             {stats.map((stat) => {
               const Icon = stat.icon
 
@@ -270,27 +246,27 @@ export function PlayerProfileSheet({
 
         <Separator className="mx-4" />
 
-        <div className="p-4 pt-3 overflow-auto">
+        <div className="p-3 sm:p-4 pt-3 overflow-auto">
           <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
             Owned finishes
           </h3>
 
           {isLoading ? (
-            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+            <div className="mt-3 sm:mt-4 flex items-center gap-2 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading owned finishes...
             </div>
           ) : error ? (
-            <p className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+            <p className="mt-3 sm:mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
               {error}
             </p>
           ) : ownedFinishes.length ? (
-            <ul className="mt-4 space-y-3 overflow-y-auto pr-1">
-              {ownedFinishes.map(({ item, cosmetic }) => {
+            <ul className="mt-3 sm:mt-4 space-y-2 sm:space-y-3 overflow-y-auto pr-1">
+              {ownedFinishes.map(({ snapshot, cosmetic }) => {
                 const ownedSince =
-                  item.unboxed_at ?? item.updated_at ?? item.created_at ?? null
+                  snapshot.latest_occurred_at ?? snapshot.created_at ?? null
                 const unboxedByPlayer =
-                  player && item.unboxed_by === player.id && item.unboxed_at
+                  player && snapshot.first_unbox_to_player_id === player.id && snapshot.first_unbox_occurred_at
                 let ownedDisplay = "Unknown date"
 
                 if (ownedSince) {
@@ -302,16 +278,16 @@ export function PlayerProfileSheet({
 
                 return (
                   <li
-                    key={item.id}
+                    key={snapshot.item_id}
                     className="rounded-md border border-border/70 bg-card/70 p-3 shadow-sm"
                   >
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-baseline justify-between gap-3">
                         <p className="text-sm font-medium text-foreground">
-                          {cosmetic?.name?.trim() || item.id}
+                          {snapshot.cosmetic_name?.trim() || snapshot.item_id}
                         </p>
                         <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                          {item.finish_type?.trim() || "Unknown finish"}
+                          {snapshot.finish_type?.trim() || "Unknown finish"}
                         </span>
                       </div>
                       <p className="text-xs text-muted-foreground">

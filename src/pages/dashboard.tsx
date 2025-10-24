@@ -7,9 +7,7 @@ import {
   Sparkles,
   TrendingUp,
   Users2,
-  Activity,
   BarChart3,
-  PieChart as PieChartIcon,
 } from "lucide-react"
 
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
@@ -22,25 +20,21 @@ import { LineChart, BarChart, AreaChart, PieChart } from "@/components/charts"
 import { TrendIndicator } from "@/components/trend-indicator"
 import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
-import { numberFormatter, percentFormatter, shortDateFormatter, relativeTimeFormatter, parseTimestamp, formatRelativeTime } from "@/lib/formatters"
-import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
-import { timeWindows, isWithinTimeWindow } from "@/lib/time-utils"
+import { numberFormatter, percentFormatter, parseTimestamp, formatRelativeTime } from "@/lib/formatters"
+import { buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
+import { isWithinTimeWindow } from "@/lib/time-utils"
 import { 
   calculateTrend, 
   generateTimeSeriesData, 
   generatePlayerGrowthData, 
-  generateFinishTypeDistribution,
-  type TrendData 
+  generateFinishTypeDistribution
 } from "@/lib/analytics-utils"
 import {
   fetchCosmetics,
   fetchItemOwnershipSnapshots,
   fetchOwnershipEvents,
   fetchPlayers,
-  type CosmeticRecord,
-  type ItemOwnershipSnapshot,
   type OwnershipAction,
-  type OwnershipEventRecord,
   type PlayerRecord,
 } from "@/utils/supabase"
 
@@ -64,9 +58,11 @@ export function DashboardPage() {
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
 
-  // Time window calculations using the new utility
-  const sevenDaysAgo = timeWindows.last7Days()
-  const thirtyDaysAgo = timeWindows.last30Days()
+  const [nowTimestamp, setNowTimestamp] = React.useState(() => Date.now())
+  const dayInMs = 24 * 60 * 60 * 1000
+  const sevenDaysAgo = nowTimestamp - 7 * dayInMs
+  const fourteenDaysAgo = nowTimestamp - 14 * dayInMs
+  const thirtyDaysAgo = nowTimestamp - 30 * dayInMs
 
   const playersById = React.useMemo(() => {
     const lookup = new Map<string, PlayerRecord>()
@@ -78,6 +74,10 @@ export function DashboardPage() {
     }
     return lookup
   }, [players])
+
+  React.useEffect(() => {
+    setNowTimestamp(Date.now())
+  }, [cosmetics, players, events, snapshots])
 
   const activationInsights = React.useMemo(() => {
     const participants = new Set<string>()
@@ -93,8 +93,6 @@ export function DashboardPage() {
         participants.add(fromPlayer)
       }
     }
-
-    const now = Date.now()
 
     let newPlayersLast30 = 0
     let newPlayersLast7 = 0
@@ -141,12 +139,9 @@ export function DashboardPage() {
       activeCount,
       bannedCount,
     }
-  }, [events, players])
+  }, [events, players, thirtyDaysAgo, sevenDaysAgo])
 
   const eventAnalytics = React.useMemo(() => {
-    const now = Date.now()
-    const fourteenDaysAgo = timeWindows.last14Days()
-
     let totalLast7 = 0
     let unboxedLast7 = 0
     let transferLast7 = 0
@@ -193,7 +188,7 @@ export function DashboardPage() {
       transferPrev7,
       revokePrev7,
     }
-  }, [events])
+  }, [events, sevenDaysAgo, fourteenDaysAgo])
 
   const flowComparisons = React.useMemo(() => {
     const total = eventAnalytics.totalLast7
@@ -223,22 +218,10 @@ export function DashboardPage() {
     }))
   }, [eventAnalytics])
 
-  const flowSummary = React.useMemo(() => {
-    const totalDelta = eventAnalytics.totalLast7 - eventAnalytics.totalPrev7
-    const unboxedShare = eventAnalytics.totalLast7 > 0
-      ? eventAnalytics.unboxedLast7 / eventAnalytics.totalLast7
-      : null
-
-    return {
-      totalDelta,
-      unboxedShare,
-      hasBaseline: eventAnalytics.totalPrev7 > 0,
-    }
-  }, [eventAnalytics])
 
   const finishInsights = React.useMemo(() => {
     const totalItems = snapshots.length
-    const monthAgo = timeWindows.last30Days()
+    const monthAgo = thirtyDaysAgo
     const finishMap = new Map<
       string,
       { count: number; fresh: number }
@@ -277,7 +260,7 @@ export function DashboardPage() {
       unassignedItems,
       finishRows,
     }
-  }, [snapshots])
+  }, [snapshots, thirtyDaysAgo])
 
   const ownershipCoverage = React.useMemo(() => {
     const assigned = finishInsights.totalItems - finishInsights.unassignedItems
@@ -300,7 +283,7 @@ export function DashboardPage() {
       ? exclusiveCosmetics.length / cosmetics.length
       : 0
 
-    const monthAgo = timeWindows.last30Days()
+    const monthAgo = thirtyDaysAgo
     const latestEntries = cosmetics
       .map((cosmetic) => {
         const lastTouched = parseTimestamp(cosmetic.updated_at) ??
@@ -345,18 +328,13 @@ export function DashboardPage() {
       latestEntries,
       topTypes,
     }
-  }, [cosmetics])
+  }, [cosmetics, thirtyDaysAgo])
 
   const overviewMetrics = React.useMemo(() => {
     const exclusiveDetail = percentFormatter.format(
       catalogHighlights.exclusiveShare || 0,
     )
 
-    const unassignedDetail = finishInsights.totalItems > 0
-      ? percentFormatter.format(
-        finishInsights.unassignedItems / finishInsights.totalItems,
-      )
-      : "0%"
 
     const activationRate = activationInsights.activationRate
 
@@ -411,7 +389,6 @@ export function DashboardPage() {
     catalogHighlights.exclusiveShare,
     cosmetics.length,
     finishInsights.totalItems,
-    finishInsights.unassignedItems,
     ownershipCoverage.assigned,
     ownershipCoverage.coverage,
   ])
@@ -498,13 +475,11 @@ export function DashboardPage() {
 
   // Analytics data processing
   const analyticsData = React.useMemo(() => {
-    const last30Days = timeWindows.last30Days()
-    const last7Days = timeWindows.last7Days()
-    const last14Days = timeWindows.last14Days()
+    const last30Days = thirtyDaysAgo
 
     // Generate time series data for events
-    const eventTimeSeries = generateTimeSeriesData(events, { start: last30Days, end: Date.now() }, "day")
-    const playerGrowthData = generatePlayerGrowthData(players, { start: last30Days, end: Date.now() }, "day")
+    const eventTimeSeries = generateTimeSeriesData(events, { start: last30Days, end: nowTimestamp }, "day")
+    const playerGrowthData = generatePlayerGrowthData(players, { start: last30Days, end: nowTimestamp }, "day")
     const finishDistribution = generateFinishTypeDistribution(snapshots)
 
     // Calculate trends
@@ -531,7 +506,15 @@ export function DashboardPage() {
         playerGrowth: playerGrowthTrend,
       }
     }
-  }, [events, players, snapshots, eventAnalytics, activationInsights])
+  }, [
+    events,
+    players,
+    snapshots,
+    eventAnalytics,
+    activationInsights,
+    thirtyDaysAgo,
+    nowTimestamp,
+  ])
 
   const handlePlayerSelect = React.useCallback((player: PlayerRecord | null) => {
     if (!player) {
@@ -540,7 +523,6 @@ export function DashboardPage() {
     playerProfile.openProfile(player)
   }, [playerProfile])
 
-  const handleProfileSheetChange = playerProfile.handleOpenChange
 
   const isEmptyState = !dataLoader.isLoading &&
     cosmetics.length === 0 &&
@@ -558,11 +540,11 @@ export function DashboardPage() {
 
   return (
     <>
-      <section className="space-y-8 px-4 py-6 sm:px-6 lg:px-8">
-        <header className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
-            <p className="text-muted-foreground">Comprehensive overview of your ORFinishes system</p>
+      <section className="space-y-6 sm:space-y-8 px-3 py-4 sm:px-4 sm:py-6 lg:px-8">
+        <header className="flex flex-col gap-4 sm:gap-6 sm:flex-row sm:items-start sm:justify-between">
+          <div className="space-y-1 sm:space-y-2">
+            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground">Dashboard</h1>
+            <p className="text-sm sm:text-base text-muted-foreground">Comprehensive overview</p>
           </div>
           <div className="flex items-center gap-2">
             <Button
@@ -577,12 +559,14 @@ export function DashboardPage() {
               {dataLoader.isRefreshing ? (
                 <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Refreshing...
+                <span className="hidden sm:inline">Refreshing...</span>
+                <span className="sm:hidden">...</span>
                 </>
               ) : (
                 <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Refresh data
+                <span className="hidden sm:inline">Refresh data</span>
+                <span className="sm:hidden">Refresh</span>
                 </>
               )}
             </Button>
@@ -647,14 +631,14 @@ export function DashboardPage() {
       ) : (
         <>
           {/* Overview Metrics */}
-          <div className="space-y-6">
+          <div className="space-y-4 sm:space-y-6">
             <div className="flex items-center gap-2">
               <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                 <TrendingUp className="h-4 w-4 text-primary" />
               </div>
-              <h2 className="text-xl font-semibold text-foreground">Key Metrics</h2>
+              <h2 className="text-lg sm:text-xl font-semibold text-foreground">Key Metrics</h2>
             </div>
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
               {overviewMetrics.map((metric) => (
                 <StatCardWithIcon
                   key={metric.label}
@@ -669,22 +653,22 @@ export function DashboardPage() {
           </div>
 
           {/* Analytics Charts Section */}
-          <div className="space-y-8">
+          <div className="space-y-6 sm:space-y-8">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <BarChart3 className="h-5 w-5 text-primary" />
+                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-2xl font-bold text-foreground">Analytics Dashboard</h2>
-                  <p className="text-sm text-muted-foreground">Comprehensive insights into system activity and trends</p>
+                  <h2 className="text-lg sm:text-2xl font-bold text-foreground">Analytics Dashboard</h2>
+                  <p className="text-xs sm:text-sm text-muted-foreground">Comprehensive insights into system activity and trends</p>
                 </div>
               </div>
             </div>
 
             {/* Activity Trends - Full Width */}
-            <div className="grid gap-6 xl:grid-cols-2">
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
+              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
                 <LineChart
                   data={analyticsData.eventTimeSeries}
                   lines={[
@@ -695,11 +679,11 @@ export function DashboardPage() {
                   ]}
                   title="Activity Over Time"
                   description="Daily breakdown of ownership events in the last 30 days"
-                  height={350}
+                  height={250}
                 />
               </div>
 
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
                 <AreaChart
                   data={analyticsData.playerGrowthData}
                   areas={[
@@ -708,30 +692,30 @@ export function DashboardPage() {
                   ]}
                   title="Player Growth"
                   description="New player registrations and cumulative growth"
-                  height={350}
+                  height={250}
                 />
               </div>
             </div>
 
             {/* Distribution and Trends - Three Column */}
-            <div className="grid gap-6 lg:grid-cols-3">
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+            <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
+              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
                 <PieChart
                   data={analyticsData.finishDistribution}
                   title="Finish Type Distribution"
                   description="Breakdown of items by finish type"
-                  height={320}
+                  height={250}
                   showLabel={true}
                 />
               </div>
 
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
-                <div className="space-y-6">
+              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
+                <div className="space-y-4 sm:space-y-6">
                   <div>
-                    <h3 className="text-lg font-semibold text-foreground">Activity Trends</h3>
-                    <p className="text-sm text-muted-foreground">Week-over-week comparison</p>
+                    <h3 className="text-base sm:text-lg font-semibold text-foreground">Activity Trends</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground">Week-over-week comparison</p>
                   </div>
-                  <div className="space-y-6">
+                  <div className="space-y-4 sm:space-y-6">
                     <div className="rounded-lg bg-muted/30 p-4">
                       <TrendIndicator
                         trend={analyticsData.trends.totalEvents}
@@ -757,7 +741,7 @@ export function DashboardPage() {
                 </div>
               </div>
 
-              <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm transition-all hover:shadow-md">
+              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
                 <BarChart
                   data={flowComparisons.map(({ share, ...rest }) => rest)}
                   bars={[
@@ -766,7 +750,7 @@ export function DashboardPage() {
                   ]}
                   title="Event Flow Comparison"
                   description="Week-over-week event breakdown"
-                  height={320}
+                  height={250}
                   xAxisKey="label"
                 />
               </div>
@@ -774,27 +758,27 @@ export function DashboardPage() {
           </div>
 
           {/* Leaderboard Section */}
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
+          <div className="space-y-4 sm:space-y-6">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10">
                   <Users2 className="h-4 w-4 text-primary" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-foreground">
+                  <h2 className="text-lg sm:text-xl font-semibold text-foreground">
                     Finish Ownership Leaderboard
                   </h2>
-                  <p className="text-sm text-muted-foreground">
+                  <p className="text-xs sm:text-sm text-muted-foreground">
                     Top holders ranked by the finishes currently assigned to them
                   </p>
                 </div>
               </div>
-              <span className="rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground">
+              <span className="rounded-full border border-border/60 bg-muted/30 px-3 py-1 text-xs font-medium text-muted-foreground self-start sm:self-auto">
                 {numberFormatter.format(playerLeaderboard.trackedOwners)} tracked owners
               </span>
             </div>
 
-            <div className="rounded-xl border border-border/60 bg-card p-6 shadow-sm">
+            <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm">
 
               {playerLeaderboard.rows.length ? (
                 <div className="space-y-4">

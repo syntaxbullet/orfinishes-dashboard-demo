@@ -136,10 +136,10 @@ export type ItemRecord = {
   cosmetic: string;
   finish_type: string;
   current_owner: string | null;
-  unboxed_by: string | null;
+  minted_by: string | null;
   created_at: string;
   updated_at: string | null;
-  unboxed_at: string | null;
+  minted_at: string | null;
 };
 
 export type OwnershipAction = "grant" | "transfer" | "unbox" | "revoke";

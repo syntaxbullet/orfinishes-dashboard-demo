@@ -48,8 +48,25 @@ export function LineChart({
   yAxisLabel,
   xAxisLabel,
 }: LineChartProps) {
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    const checkMobile = () => {
+      setIsMobile(window.innerWidth < 768)
+    }
+    checkMobile()
+    window.addEventListener('resize', checkMobile)
+    return () => window.removeEventListener('resize', checkMobile)
+  }, [])
+
   const formatXAxisLabel = (value: string) => {
     const date = new Date(value)
+    if (isMobile) {
+      return date.toLocaleDateString("en-US", { 
+        month: "short", 
+        day: "numeric" 
+      })
+    }
     return date.toLocaleDateString("en-US", { 
       month: "short", 
       day: "numeric" 
@@ -65,29 +82,29 @@ export function LineChart({
     })
   }
 
+  const responsiveHeight = isMobile ? Math.min(height, 250) : height
+  const responsiveMargins = isMobile 
+    ? { top: 10, right: 10, left: 10, bottom: 10 }
+    : { top: 20, right: 30, left: 20, bottom: 20 }
+
   return (
-    <div className={cn("space-y-4", className)}>
+    <div className={cn("space-y-2 sm:space-y-4", className)}>
       {(title || description) && (
         <div className="space-y-1">
           {title && (
-            <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+            <h3 className="text-base sm:text-lg font-semibold text-foreground">{title}</h3>
           )}
           {description && (
-            <p className="text-sm text-muted-foreground">{description}</p>
+            <p className="text-xs sm:text-sm text-muted-foreground">{description}</p>
           )}
         </div>
       )}
       
-      <div style={{ height }} className="rounded-lg bg-muted/20 p-4">
+      <div style={{ height: responsiveHeight }} className="rounded-lg bg-muted/20 p-2 sm:p-4">
         <ResponsiveContainer width="100%" height="100%">
           <RechartsLineChart
             data={data}
-            margin={{
-              top: 20,
-              right: 30,
-              left: 20,
-              bottom: 20,
-            }}
+            margin={responsiveMargins}
           >
             {showGrid && (
               <CartesianGrid 
@@ -126,13 +143,23 @@ export function LineChart({
                 border: "1px solid hsl(var(--border))",
                 borderRadius: "6px",
                 boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1)",
+                fontSize: isMobile ? "12px" : "14px",
               }}
               labelStyle={{
                 color: "hsl(var(--foreground))",
                 fontWeight: 500,
               }}
             />
-            {showLegend && <Legend />}
+            {showLegend && (
+              <Legend 
+                wrapperStyle={{
+                  fontSize: isMobile ? "12px" : "14px",
+                  paddingTop: isMobile ? "8px" : "16px"
+                }}
+                verticalAlign={isMobile ? "bottom" : "top"}
+                height={isMobile ? 36 : 72}
+              />
+            )}
             {lines.map((line) => (
               <Line
                 key={line.dataKey}

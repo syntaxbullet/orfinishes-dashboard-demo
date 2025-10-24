@@ -4,6 +4,8 @@
  */
 
 import * as React from "react"
+import type { Column } from "@tanstack/react-table"
+
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -52,9 +54,9 @@ export function DataTableToolbar({
   )
 }
 
-export interface DataTableSearchProps {
+export interface DataTableSearchProps<TData> {
   /** The table column to filter */
-  column: any
+  column?: Column<TData, unknown>
   /** Placeholder text for the search input */
   placeholder?: string
   /** Additional CSS classes */
@@ -64,11 +66,11 @@ export interface DataTableSearchProps {
 /**
  * Search input component for data table filtering.
  */
-export function DataTableSearch({
+export function DataTableSearch<TData>({
   column,
   placeholder = "Search...",
   className,
-}: DataTableSearchProps) {
+}: DataTableSearchProps<TData>) {
   const searchValue = (column?.getFilterValue() as string | undefined) ?? ""
 
   return (
