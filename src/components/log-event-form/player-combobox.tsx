@@ -26,6 +26,7 @@ interface PlayerComboboxProps {
   placeholder?: string
   disabled?: boolean
   onSelectionChange?: (selection: PlayerSelection | null) => void
+  externalSelection?: PlayerSelection | null
 }
 
 export type PlayerSelection = {
@@ -39,6 +40,7 @@ export function PlayerCombobox({
   placeholder = "Select player...",
   disabled = false,
   onSelectionChange,
+  externalSelection,
 }: PlayerComboboxProps) {
   const [open, setOpen] = React.useState(false)
   const [players, setPlayers] = React.useState<PlayerRecord[]>([])
@@ -65,6 +67,14 @@ export function PlayerCombobox({
     return createPlayerDisplayInfo(selectedPlayer, 32)
   }, [selectedPlayer])
 
+  const resolvedDisplayInfo = React.useMemo(() => {
+    if (selectedDisplayInfo) {
+      return selectedDisplayInfo
+    }
+
+    return externalSelection?.displayInfo ?? null
+  }, [selectedDisplayInfo, externalSelection])
+
   const handleSelection = React.useCallback(
     (player: PlayerRecord | null) => {
       if (!player) {
@@ -90,10 +100,10 @@ export function PlayerCombobox({
           className="w-full justify-between h-12 px-3"
           disabled={disabled}
         >
-          {selectedDisplayInfo ? (
+          {resolvedDisplayInfo ? (
             <div className="flex items-center gap-2">
-              <PlayerAvatar profile={selectedDisplayInfo} size="sm" />
-              <span className="truncate">{selectedDisplayInfo.displayName}</span>
+              <PlayerAvatar profile={resolvedDisplayInfo} size="sm" />
+              <span className="truncate">{resolvedDisplayInfo.displayName}</span>
             </div>
           ) : (
             <span className="text-muted-foreground">{placeholder}</span>

@@ -2,6 +2,8 @@ import * as React from "react"
 import {
   ArrowRightLeft,
   CalendarClock,
+  ChevronDown,
+  ChevronUp,
   Gift,
   Loader2,
   Package,
@@ -31,6 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator"
 import { ACTION_DESCRIPTIONS, ACTION_LABELS, validateEventData } from "@/lib/event-utils"
 import { dateTimeFormatter } from "@/lib/formatters"
+import { createPlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
 import {
   createItem,
@@ -121,6 +124,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
   const [selectedCosmetic, setSelectedCosmetic] = React.useState<CosmeticRecord | null>(null)
   const [selectedFromPlayer, setSelectedFromPlayer] = React.useState<PlayerSelection | null>(null)
   const [selectedToPlayer, setSelectedToPlayer] = React.useState<PlayerSelection | null>(null)
+  const [isMobileSummaryOpen, setIsMobileSummaryOpen] = React.useState(false)
 
   React.useEffect(() => {
     if (open) {
@@ -130,6 +134,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
       setSelectedCosmetic(null)
       setSelectedFromPlayer(null)
       setSelectedToPlayer(null)
+      setIsMobileSummaryOpen(false)
     }
   }, [open])
 
@@ -173,7 +178,41 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
     setSelectedCosmetic(null)
     setSelectedFromPlayer(null)
     setSelectedToPlayer(null)
+    setIsMobileSummaryOpen(false)
   }, [])
+
+  const handleItemSelectionChange = React.useCallback(
+    (itemWithMetadata: ItemWithMetadata | null) => {
+      let nextFromSelection: PlayerSelection | null | undefined
+
+      setSelectedItem(itemWithMetadata)
+      setFormData((prev) => {
+        const next: FormData = {
+          ...prev,
+          itemId: itemWithMetadata?.item.id ?? "",
+        }
+
+        if (prev.action === "transfer" || prev.action === "revoke") {
+          const ownerRecord = itemWithMetadata?.owner ?? null
+          next.fromPlayer = ownerRecord?.id ?? ""
+
+          nextFromSelection = ownerRecord
+            ? {
+                record: ownerRecord,
+                displayInfo: createPlayerDisplayInfo(ownerRecord, 32),
+              }
+            : null
+        }
+
+        return next
+      })
+
+      if (nextFromSelection !== undefined) {
+        setSelectedFromPlayer(nextFromSelection)
+      }
+    },
+    [setSelectedFromPlayer],
+  )
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
@@ -289,13 +328,55 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
           </div>
         </SheetHeader>
 
-        <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <form onSubmit={handleSubmit} className="space-y-10">
-            <section className="space-y-4">
-              <div className="space-y-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Step 1</p>
-                <h3 className="text-lg font-semibold text-foreground">Choose what happened</h3>
-                <p className="text-sm text-muted-foreground">
+        <div className="mt-8 space-y-6">
+          <div className="lg:hidden">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsMobileSummaryOpen((prev) => !prev)}
+              className="flex w-full items-center justify-between rounded-xl border-border/70 bg-background px-4 py-3 text-left"
+            >
+              <span className="flex flex-col">
+                <span className="text-sm font-semibold text-foreground">Event summary</span>
+                <span className="text-xs text-muted-foreground">
+                  Keep track of item, participants, and timing.
+                </span>
+              </span>
+              {isMobileSummaryOpen ? (
+                <ChevronUp className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <ChevronDown className="h-4 w-4 text-muted-foreground" />
+              )}
+            </Button>
+            {isMobileSummaryOpen ? (
+              <div className="mt-4">
+                <EventSummaryCard
+                  action={formData.action}
+                  itemId={formData.itemId}
+                  cosmeticId={formData.cosmeticId}
+                  finishType={formData.finishType}
+                  occurredAt={formData.occurredAt}
+                  item={selectedItem}
+                  cosmetic={selectedCosmetic}
+                  fromPlayer={selectedFromPlayer}
+                  toPlayer={selectedToPlayer}
+                  isUnboxOrGrant={isUnboxOrGrant}
+                  isTransfer={isTransfer}
+                  isRevoke={isRevoke}
+                  isSubmitting={isSubmitting}
+                />
+              </div>
+            ) : null}
+          </div>
+
+          <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_340px] xl:grid-cols-[minmax(0,1fr)_360px]">
+            <form onSubmit={handleSubmit} className="space-y-10">
+              <section className="space-y-4">
+                <div className="space-y-1">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Step 1</p>
+                  <h3 className="text-lg font-semibold text-foreground">Choose what happened</h3>
+                  <p className="text-sm text-muted-foreground">
                   Pick the type of ownership event to unlock the relevant fields.
                 </p>
               </div>
@@ -369,8 +450,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                             variant="ghost"
                             size="sm"
                             onClick={() => {
-                              setFormData((prev) => ({ ...prev, itemId: "" }))
-                              setSelectedItem(null)
+                              handleItemSelectionChange(null)
                             }}
                             disabled={!formData.itemId || isSubmitting}
                           >
@@ -382,7 +462,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                           onValueChange={(value) => {
                             setFormData((prev) => ({ ...prev, itemId: value }))
                           }}
-                          onSelectionChange={setSelectedItem}
+                          onSelectionChange={handleItemSelectionChange}
                           placeholder="Search by cosmetic name, finish, or owner..."
                           disabled={disableInputs}
                         />
@@ -484,6 +564,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                               setFormData((prev) => ({ ...prev, fromPlayer: value }))
                             }}
                             onSelectionChange={setSelectedFromPlayer}
+                            externalSelection={selectedFromPlayer}
                             placeholder="Select current owner..."
                             disabled={disableInputs}
                           />
@@ -516,6 +597,7 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                               setFormData((prev) => ({ ...prev, toPlayer: value }))
                             }}
                             onSelectionChange={setSelectedToPlayer}
+                            externalSelection={selectedToPlayer}
                             placeholder="Select recipient..."
                             disabled={disableInputs}
                           />
@@ -617,23 +699,26 @@ export function LogEventSheet({ open, onOpenChange }: LogEventSheetProps) {
                 </div>
               </>
             ) : null}
-          </form>
+            </form>
 
-          <EventSummaryCard
-            action={formData.action}
-            itemId={formData.itemId}
-            cosmeticId={formData.cosmeticId}
-            finishType={formData.finishType}
-            occurredAt={formData.occurredAt}
-            item={selectedItem}
-            cosmetic={selectedCosmetic}
-            fromPlayer={selectedFromPlayer}
-            toPlayer={selectedToPlayer}
-            isUnboxOrGrant={isUnboxOrGrant}
-            isTransfer={isTransfer}
-            isRevoke={isRevoke}
-            isSubmitting={isSubmitting}
-          />
+            <div className="hidden lg:block">
+              <EventSummaryCard
+                action={formData.action}
+                itemId={formData.itemId}
+                cosmeticId={formData.cosmeticId}
+                finishType={formData.finishType}
+                occurredAt={formData.occurredAt}
+                item={selectedItem}
+                cosmetic={selectedCosmetic}
+                fromPlayer={selectedFromPlayer}
+                toPlayer={selectedToPlayer}
+                isUnboxOrGrant={isUnboxOrGrant}
+                isTransfer={isTransfer}
+                isRevoke={isRevoke}
+                isSubmitting={isSubmitting}
+              />
+            </div>
+          </div>
         </div>
       </SheetContent>
     </Sheet>
