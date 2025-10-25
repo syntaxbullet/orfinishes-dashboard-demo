@@ -6,9 +6,8 @@ import { DataTable } from "@/components/ui/data-table"
 import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableFilter } from "@/components/data-table-toolbar"
-import { useDataLoader } from "@/hooks/use-data-loader"
 import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
-import { fetchCosmetics } from "@/utils/supabase"
+import { useCosmeticsStore } from "@/stores/cosmetics-store"
 
 type CosmeticRow = {
   id: string
@@ -80,13 +79,21 @@ const catalogColumns: ColumnDef<CosmeticRow>[] = [
 export function CatalogPage() {
   const [categoryFilter, setCategoryFilter] = React.useState("all")
 
-  // Use the data loader hook for managing loading states
-  const dataLoader = useDataLoader(async () => {
-    return await fetchCosmetics()
-  })
+  // Use cosmetics store
+  const cosmeticsStore = useCosmeticsStore()
+  const cosmetics = useCosmeticsStore((state) => state.cosmetics)
+  const isLoading = useCosmeticsStore((state) => state.isLoading)
+  const error = useCosmeticsStore((state) => state.error)
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const cosmetics = dataLoader.data || []
+  // Fetch data on mount
+  React.useEffect(() => {
+    void cosmeticsStore.fetchCosmetics()
+  }, [cosmeticsStore])
+
+  // Refresh function
+  const handleRefresh = React.useCallback(() => {
+    void cosmeticsStore.refreshCosmetics()
+  }, [cosmeticsStore])
 
 
   const tableData = React.useMemo<CosmeticRow[]>(() => {
@@ -197,7 +204,7 @@ export function CatalogPage() {
             label={card.label}
             value={card.value}
             detail={card.detail}
-            isLoading={dataLoader.isLoading}
+            isLoading={isLoading}
           />
         ))}
       </div>
@@ -214,15 +221,13 @@ export function CatalogPage() {
         </div>
 
         <div className="mt-6">
-          {dataLoader.error ? (
-            <ErrorDisplay
-              error={dataLoader.error}
-              title="Failed to load catalog data."
-              onRetry={() => {
-                void dataLoader.load()
-              }}
-            />
-          ) : dataLoader.isLoading ? (
+        {error ? (
+          <ErrorDisplay
+            error={error}
+            title="Failed to load catalog data."
+            onRetry={handleRefresh}
+          />
+        ) : isLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading catalog...

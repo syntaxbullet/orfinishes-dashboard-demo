@@ -13,12 +13,8 @@ import { PlayerAvatar } from "@/components/player-avatar"
 import { PlayerStatusBadge } from "@/components/player-status-badge"
 import { numberFormatter, dateFormatter, dateTimeFormatter } from "@/lib/formatters"
 import { normalizeMinecraftUuid, createPlayerDisplayInfo } from "@/lib/player-utils"
-import {
-  fetchItemOwnershipSnapshots,
-  type CosmeticRecord,
-  type ItemOwnershipSnapshot,
-  type PlayerRecord,
-} from "@/utils/supabase"
+import { useSnapshotsStore } from "@/stores/snapshots-store"
+import type { CosmeticRecord, ItemOwnershipSnapshot, PlayerRecord } from "@/utils/supabase"
 
 type OwnedFinish = {
   snapshot: ItemOwnershipSnapshot
@@ -38,71 +34,54 @@ export function PlayerProfileSheet({
   onOpenChange,
 }: PlayerProfileSheetProps) {
   const [ownedFinishes, setOwnedFinishes] = React.useState<OwnedFinish[]>([])
-  const [isLoading, setIsLoading] = React.useState(false)
-  const [error, setError] = React.useState<string | null>(null)
+  
+  // Use snapshots store
+  const snapshotsStore = useSnapshotsStore()
+  const snapshots = useSnapshotsStore((state) => state.snapshots)
+  const isLoading = useSnapshotsStore((state) => state.isLoading)
+  const error = useSnapshotsStore((state) => state.error)
 
   React.useEffect(() => {
     if (!player || !open) {
       return
     }
 
-    let cancelled = false
-
-    const loadInventory = async () => {
-      setIsLoading(true)
-      setError(null)
-
-      try {
-        const snapshots = await fetchItemOwnershipSnapshots()
-        if (cancelled) {
-          return
-        }
-
-        // Filter snapshots for this player
-        const playerSnapshots = snapshots.filter(
-          (snapshot) => snapshot.latest_to_player_id?.trim() === player.id
-        )
-
-        const sortedSnapshots = [...playerSnapshots].sort((left, right) => {
-          const leftDate = left.latest_occurred_at ?? null
-          const rightDate = right.latest_occurred_at ?? null
-
-          const leftTimestamp = Date.parse(leftDate ?? "")
-          const rightTimestamp = Date.parse(rightDate ?? "")
-
-          return rightTimestamp - leftTimestamp
-        })
-
-        setOwnedFinishes(
-          sortedSnapshots.map((snapshot) => ({
-            snapshot,
-            cosmetic: null, // We'll use snapshot.cosmetic_name directly
-          })),
-        )
-      } catch (inventoryError) {
-        if (cancelled) {
-          return
-        }
-
-        setOwnedFinishes([])
-        setError(
-          inventoryError instanceof Error
-            ? inventoryError.message
-            : "Failed to load the latest finishes for this player.",
-        )
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false)
-        }
-      }
+    // Fetch snapshots if not already loaded
+    if (snapshots.length === 0) {
+      void snapshotsStore.fetchSnapshots()
     }
 
-    void loadInventory()
+  }, [player, open, snapshotsStore, snapshots.length])
 
-    return () => {
-      cancelled = true
+  // Process snapshots when they change
+  React.useEffect(() => {
+    if (!player || !snapshots.length) {
+      setOwnedFinishes([])
+      return
     }
-  }, [player, open])
+
+    // Filter snapshots for this player
+    const playerSnapshots = snapshots.filter(
+      (snapshot) => snapshot.latest_to_player_id?.trim() === player.id
+    )
+
+    const sortedSnapshots = [...playerSnapshots].sort((left, right) => {
+      const leftDate = left.latest_occurred_at ?? null
+      const rightDate = right.latest_occurred_at ?? null
+
+      const leftTimestamp = Date.parse(leftDate ?? "")
+      const rightTimestamp = Date.parse(rightDate ?? "")
+
+      return rightTimestamp - leftTimestamp
+    })
+
+    setOwnedFinishes(
+      sortedSnapshots.map((snapshot) => ({
+        snapshot,
+        cosmetic: null, // We'll use snapshot.cosmetic_name directly
+      })),
+    )
+  }, [player, snapshots])
 
 
   const stats = React.useMemo(() => {

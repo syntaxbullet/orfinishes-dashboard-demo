@@ -1,4 +1,4 @@
-/* eslint-disable react-hooks/exhaustive-deps */
+ 
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2 } from "lucide-react"
@@ -10,11 +10,11 @@ import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableRefresh } from "@/components/data-table-toolbar"
 import { DataTable } from "@/components/ui/data-table"
-import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateTimeFormatter, dateFormatter } from "@/lib/formatters"
 import { normalizeMinecraftUuid, buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
-import { fetchPlayers, type PlayerRecord } from "@/utils/supabase"
+import { usePlayersStore } from "@/stores/players-store"
+import type { PlayerRecord } from "@/utils/supabase"
 
 const AVATAR_IMAGE_SIZE = 72
 const AVATAR_CACHE_MAX_AGE_MS = 6 * 60 * 60 * 1000
@@ -182,12 +182,21 @@ export function PlayersPage() {
   const [showBanned, setShowBanned] = React.useState(false)
   const [isUpdatingPlayers, setisUpdatingPlayers] = React.useState(false)
 
-  // Use the data loader hook for managing loading states
-  const dataLoader = useDataLoader(async () => {
-    return await fetchPlayers({ includeBanned: true })
-  })
+  // Use players store
+  const playersStore = usePlayersStore()
+  const players = usePlayersStore((state) => state.players)
+  const isLoading = usePlayersStore((state) => state.isLoading)
+  const error = usePlayersStore((state) => state.error)
 
-  const players = dataLoader.data || []
+  // Fetch data on mount
+  React.useEffect(() => {
+    void playersStore.fetchPlayers({ includeBanned: true })
+  }, [playersStore])
+
+  // Refresh function
+  const handleRefresh = React.useCallback(() => {
+    void playersStore.refreshPlayers()
+  }, [playersStore])
   
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
@@ -298,12 +307,12 @@ export function PlayersPage() {
       if (didMutate) {
         // Give the edge function a brief moment to finish background uploads before reloading data.
         await new Promise((resolve) => setTimeout(resolve, 750))
-        await dataLoader.load({ forceRefresh: true })
+        await playersStore.fetchPlayers({ includeBanned: true, forceRefresh: true })
       }
     } finally {
       setisUpdatingPlayers(false)
     }
-  }, [players, isUpdatingPlayers, dataLoader])
+  }, [players, isUpdatingPlayers, playersStore])
 
   const columns = React.useMemo(
     () => createPlayerColumns(handlePlayerClick),
@@ -453,7 +462,7 @@ export function PlayersPage() {
             label={card.label}
             value={card.value}
             detail={card.detail}
-            isLoading={dataLoader.isLoading}
+            isLoading={isLoading}
           />
         ))}
       </div>
@@ -468,15 +477,13 @@ export function PlayersPage() {
         </div>
 
         <div className="mt-6">
-          {dataLoader.error ? (
+          {error ? (
             <ErrorDisplay
-              error={dataLoader.error}
+              error={error}
               title="Failed to load player data."
-              onRetry={() => {
-                void dataLoader.load()
-              }}
+              onRetry={handleRefresh}
             />
-          ) : dataLoader.isLoading ? (
+          ) : isLoading ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
               Loading players...

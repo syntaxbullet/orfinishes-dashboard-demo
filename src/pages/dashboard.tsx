@@ -7,7 +7,6 @@ import {
   Sparkles,
   TrendingUp,
   Users2,
-  BarChart3,
 } from "lucide-react"
 
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
@@ -16,52 +15,65 @@ import { StatCardWithIcon } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
 import { Button } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
-import { LineChart, BarChart, AreaChart, PieChart } from "@/components/charts"
-import { TrendIndicator } from "@/components/trend-indicator"
-import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, percentFormatter, parseTimestamp, formatRelativeTime } from "@/lib/formatters"
 import { buildPlayerAvatarUrl, createPlayerDisplayInfo } from "@/lib/player-utils"
 import { isWithinTimeWindow } from "@/lib/time-utils"
-import { 
-  calculateTrend, 
-  generateTimeSeriesData, 
-  generatePlayerGrowthData, 
-  generateFinishTypeDistribution
-} from "@/lib/analytics-utils"
-import {
-  fetchCosmetics,
-  fetchItemOwnershipSnapshots,
-  fetchOwnershipEvents,
-  fetchPlayers,
-  type OwnershipAction,
-  type PlayerRecord,
-} from "@/utils/supabase"
+import { usePlayersStore } from "@/stores/players-store"
+import { useCosmeticsStore } from "@/stores/cosmetics-store"
+import { useEventsStore } from "@/stores/events-store"
+import { useSnapshotsStore } from "@/stores/snapshots-store"
+import type { PlayerRecord } from "@/utils/supabase"
 
-const unboxedActionSet: ReadonlySet<OwnershipAction> = new Set(["grant", "unbox"])
 
 
 export function DashboardPage() {
-  // Use the data loader hook for managing loading states
-  const dataLoader = useDataLoader(async () => {
-    const [cosmeticsData, playersData, snapshotsData, eventsData] = await Promise.all([
-      fetchCosmetics(),
-      fetchPlayers({ includeBanned: true }),
-      fetchItemOwnershipSnapshots(),
-      fetchOwnershipEvents({ limit: 400 }),
-    ])
-    return { cosmetics: cosmeticsData, players: playersData, snapshots: snapshotsData, events: eventsData }
-  })
+  // Use stores for data management
+  const playersStore = usePlayersStore()
+  const cosmeticsStore = useCosmeticsStore()
+  const eventsStore = useEventsStore()
+  const snapshotsStore = useSnapshotsStore()
 
-  const { cosmetics, players, events, snapshots } = dataLoader.data || { cosmetics: [], players: [], events: [], snapshots: [] }
+  // Get data from stores
+  const cosmetics = useCosmeticsStore((state) => state.cosmetics)
+  const players = usePlayersStore((state) => state.players)
+  const events = useEventsStore((state) => state.events)
+  const snapshots = useSnapshotsStore((state) => state.snapshots)
+
+  // Get loading states
+  const isLoading = playersStore.isLoading || cosmeticsStore.isLoading || eventsStore.isLoading || snapshotsStore.isLoading
+  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || eventsStore.isRefreshing || snapshotsStore.isRefreshing
+  const error = playersStore.error || cosmeticsStore.error || eventsStore.error || snapshotsStore.error
   
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
 
   const [nowTimestamp, setNowTimestamp] = React.useState(() => Date.now())
+
+  // Fetch data on mount
+  React.useEffect(() => {
+    const fetchData = async () => {
+      await Promise.all([
+        playersStore.fetchPlayers({ includeBanned: true }),
+        cosmeticsStore.fetchCosmetics(),
+        eventsStore.fetchEvents({ limit: 400 }),
+        snapshotsStore.fetchSnapshots(),
+      ])
+    }
+    void fetchData()
+  }, [playersStore, cosmeticsStore, eventsStore, snapshotsStore])
+
+  // Refresh function
+  const handleRefresh = React.useCallback(async () => {
+    await Promise.all([
+      playersStore.refreshPlayers(),
+      cosmeticsStore.refreshCosmetics(),
+      eventsStore.refreshEvents(),
+      snapshotsStore.refreshSnapshots(),
+    ])
+  }, [playersStore, cosmeticsStore, eventsStore, snapshotsStore])
   const dayInMs = 24 * 60 * 60 * 1000
   const sevenDaysAgo = nowTimestamp - 7 * dayInMs
-  const fourteenDaysAgo = nowTimestamp - 14 * dayInMs
   const thirtyDaysAgo = nowTimestamp - 30 * dayInMs
 
   const playersById = React.useMemo(() => {
@@ -141,82 +153,7 @@ export function DashboardPage() {
     }
   }, [events, players, thirtyDaysAgo, sevenDaysAgo])
 
-  const eventAnalytics = React.useMemo(() => {
-    let totalLast7 = 0
-    let unboxedLast7 = 0
-    let transferLast7 = 0
-    let revokeLast7 = 0
-    let totalPrev7 = 0
-    let unboxedPrev7 = 0
-    let transferPrev7 = 0
-    let revokePrev7 = 0
 
-    for (const event of events) {
-      const timestamp = parseTimestamp(event.occurred_at)
-      if (timestamp === null) {
-        continue
-      }
-
-      if (isWithinTimeWindow(timestamp, sevenDaysAgo)) {
-        totalLast7 += 1
-        if (unboxedActionSet.has(event.action)) {
-          unboxedLast7 += 1
-        } else if (event.action === "transfer") {
-          transferLast7 += 1
-        } else if (event.action === "revoke") {
-          revokeLast7 += 1
-        }
-      } else if (isWithinTimeWindow(timestamp, fourteenDaysAgo)) {
-        totalPrev7 += 1
-        if (unboxedActionSet.has(event.action)) {
-          unboxedPrev7 += 1
-        } else if (event.action === "transfer") {
-          transferPrev7 += 1
-        } else if (event.action === "revoke") {
-          revokePrev7 += 1
-        }
-      }
-    }
-
-    return {
-      totalLast7,
-      unboxedLast7,
-      transferLast7,
-      revokeLast7,
-      totalPrev7,
-      unboxedPrev7,
-      transferPrev7,
-      revokePrev7,
-    }
-  }, [events, sevenDaysAgo, fourteenDaysAgo])
-
-  const flowComparisons = React.useMemo(() => {
-    const total = eventAnalytics.totalLast7
-
-    return [
-      {
-        key: "unboxed",
-        label: "Unboxed",
-        value: eventAnalytics.unboxedLast7,
-        previous: eventAnalytics.unboxedPrev7,
-      },
-      {
-        key: "transfer",
-        label: "Transfers",
-        value: eventAnalytics.transferLast7,
-        previous: eventAnalytics.transferPrev7,
-      },
-      {
-        key: "revoke",
-        label: "Reversals",
-        value: eventAnalytics.revokeLast7,
-        previous: eventAnalytics.revokePrev7,
-      },
-    ].map((entry) => ({
-      ...entry,
-      share: total > 0 ? entry.value / total : null,
-    }))
-  }, [eventAnalytics])
 
 
   const finishInsights = React.useMemo(() => {
@@ -474,47 +411,6 @@ export function DashboardPage() {
   ])
 
   // Analytics data processing
-  const analyticsData = React.useMemo(() => {
-    const last30Days = thirtyDaysAgo
-
-    // Generate time series data for events
-    const eventTimeSeries = generateTimeSeriesData(events, { start: last30Days, end: nowTimestamp }, "day")
-    const playerGrowthData = generatePlayerGrowthData(players, { start: last30Days, end: nowTimestamp }, "day")
-    const finishDistribution = generateFinishTypeDistribution(snapshots)
-
-    // Calculate trends
-    const totalEventsTrend = calculateTrend(
-      eventAnalytics.totalLast7,
-      eventAnalytics.totalPrev7
-    )
-    const unboxedTrend = calculateTrend(
-      eventAnalytics.unboxedLast7,
-      eventAnalytics.unboxedPrev7
-    )
-    const playerGrowthTrend = calculateTrend(
-      activationInsights.newPlayersLast7,
-      activationInsights.newPlayersLast30 - activationInsights.newPlayersLast7
-    )
-
-    return {
-      eventTimeSeries,
-      playerGrowthData,
-      finishDistribution,
-      trends: {
-        totalEvents: totalEventsTrend,
-        unboxed: unboxedTrend,
-        playerGrowth: playerGrowthTrend,
-      }
-    }
-  }, [
-    events,
-    players,
-    snapshots,
-    eventAnalytics,
-    activationInsights,
-    thirtyDaysAgo,
-    nowTimestamp,
-  ])
 
   const handlePlayerSelect = React.useCallback((player: PlayerRecord | null) => {
     if (!player) {
@@ -524,7 +420,7 @@ export function DashboardPage() {
   }, [playerProfile])
 
 
-  const isEmptyState = !dataLoader.isLoading &&
+  const isEmptyState = !isLoading &&
     cosmetics.length === 0 &&
     players.length === 0 &&
     events.length === 0 &&
@@ -550,13 +446,11 @@ export function DashboardPage() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                void dataLoader.refresh()
-              }}
-              disabled={dataLoader.isRefreshing || dataLoader.isLoading}
+              onClick={handleRefresh}
+              disabled={isRefreshing || isLoading}
               className="transition-all hover:scale-105"
             >
-              {dataLoader.isRefreshing ? (
+              {isRefreshing ? (
                 <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                 <span className="hidden sm:inline">Refreshing...</span>
@@ -573,16 +467,14 @@ export function DashboardPage() {
           </div>
         </header>
 
-        {dataLoader.error ? (
+        {error ? (
           <ErrorDisplay
-            error={dataLoader.error}
-            onRetry={() => {
-              void dataLoader.load()
-            }}
+            error={error}
+            onRetry={handleRefresh}
           />
         ) : null}
 
-        {dataLoader.isLoading ? (
+        {isLoading ? (
         <>
           {renderOverviewSkeleton()}
           {/* Analytics Skeleton */}
@@ -646,114 +538,9 @@ export function DashboardPage() {
                   value={metric.value}
                   detail={metric.detail}
                   icon={metric.icon}
-                  isLoading={dataLoader.isLoading}
+                  isLoading={isLoading}
                 />
               ))}
-            </div>
-          </div>
-
-          {/* Analytics Charts Section */}
-          <div className="space-y-6 sm:space-y-8">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex h-8 w-8 sm:h-10 sm:w-10 items-center justify-center rounded-lg bg-primary/10">
-                  <BarChart3 className="h-4 w-4 sm:h-5 sm:w-5 text-primary" />
-                </div>
-                <div>
-                  <h2 className="text-lg sm:text-2xl font-bold text-foreground">Analytics Dashboard</h2>
-                  <p className="text-xs sm:text-sm text-muted-foreground">Comprehensive insights into system activity and trends</p>
-                </div>
-              </div>
-            </div>
-
-            {/* Activity Trends - Full Width */}
-            <div className="grid gap-4 sm:gap-6 grid-cols-1 xl:grid-cols-2">
-              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
-                <LineChart
-                  data={analyticsData.eventTimeSeries}
-                  lines={[
-                    { dataKey: "total", name: "Total Events", color: "#3b82f6", strokeWidth: 3 },
-                    { dataKey: "unboxed", name: "Unboxed", color: "#10b981", strokeWidth: 2 },
-                    { dataKey: "transfers", name: "Transfers", color: "#f59e0b", strokeWidth: 2 },
-                    { dataKey: "revokes", name: "Revokes", color: "#ef4444", strokeWidth: 2 },
-                  ]}
-                  title="Activity Over Time"
-                  description="Daily breakdown of ownership events in the last 30 days"
-                  height={250}
-                />
-              </div>
-
-              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
-                <AreaChart
-                  data={analyticsData.playerGrowthData}
-                  areas={[
-                    { dataKey: "new", name: "New Players", color: "#8b5cf6", fillOpacity: 0.3 },
-                    { dataKey: "total", name: "Total Players", color: "#3b82f6", fillOpacity: 0.1 },
-                  ]}
-                  title="Player Growth"
-                  description="New player registrations and cumulative growth"
-                  height={250}
-                />
-              </div>
-            </div>
-
-            {/* Distribution and Trends - Three Column */}
-            <div className="grid gap-4 sm:gap-6 grid-cols-1 lg:grid-cols-3">
-              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
-                <PieChart
-                  data={analyticsData.finishDistribution}
-                  title="Finish Type Distribution"
-                  description="Breakdown of items by finish type"
-                  height={250}
-                  showLabel={true}
-                />
-              </div>
-
-              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
-                <div className="space-y-4 sm:space-y-6">
-                  <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-foreground">Activity Trends</h3>
-                    <p className="text-xs sm:text-sm text-muted-foreground">Week-over-week comparison</p>
-                  </div>
-                  <div className="space-y-4 sm:space-y-6">
-                    <div className="rounded-lg bg-muted/30 p-4">
-                      <TrendIndicator
-                        trend={analyticsData.trends.totalEvents}
-                        label="Total Events"
-                        size="lg"
-                      />
-                    </div>
-                    <div className="rounded-lg bg-muted/30 p-4">
-                      <TrendIndicator
-                        trend={analyticsData.trends.unboxed}
-                        label="Unboxed Items"
-                        size="lg"
-                      />
-                    </div>
-                    <div className="rounded-lg bg-muted/30 p-4">
-                      <TrendIndicator
-                        trend={analyticsData.trends.playerGrowth}
-                        label="New Players"
-                        size="lg"
-                      />
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm transition-all hover:shadow-md">
-                <BarChart
-                  data={flowComparisons.map(({ share, ...rest }) => rest)}
-                  bars={[
-                    { dataKey: "value", name: "This Week", color: "#3b82f6" },
-                    { dataKey: "previous", name: "Previous Week", color: "#6b7280" },
-                  ]}
-                  title="Event Flow Comparison"
-                  description="Week-over-week event breakdown"
-                  height={250}
-                  xAxisKey="label"
-                />
-              </div>
             </div>
           </div>
 
@@ -818,7 +605,7 @@ export function DashboardPage() {
                           </span>
                           {entry.player ? (
                             <PlayerAvatar 
-                              profile={createPlayerDisplayInfo(entry.player, 72)} 
+                              profile={createPlayerDisplayInfo(entry.player)} 
                               size="lg" 
                             />
                           ) : (

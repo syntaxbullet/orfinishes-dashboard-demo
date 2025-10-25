@@ -402,6 +402,52 @@ export async function fetchItemsCount(
   );
 }
 
+export async function searchItems(
+  options: QueryOptions & {
+    search?: string;
+    forceRefresh?: boolean;
+  } = {},
+): Promise<ItemRecord[]> {
+  const { forceRefresh, ...queryOptions } = options;
+  const cacheKey = buildCacheKey("searchItems", {
+    search: queryOptions.search ?? null,
+    limit: queryOptions.limit ?? null,
+  });
+
+  return readThroughCache(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from("items")
+        .select(`
+          *,
+          cosmetics!inner(name, type),
+          players!items_current_owner_fkey(id, display_name, minecraft_uuid, is_banned, avatar_storage_path, avatar_synced_at, profile_synced_at)
+        `)
+        .order("id", { ascending: false });
+
+      if (queryOptions.search && queryOptions.search.trim()) {
+        const searchPattern = `%${queryOptions.search.trim()}%`;
+        // Search across cosmetic name, finish type, and player display name
+        query = query.ilike("cosmetics.name", searchPattern)
+      }
+
+      if (queryOptions.limit) {
+        query = query.limit(queryOptions.limit);
+      }
+
+      const { data, error } = await query.returns<ItemRecord[]>();
+
+      if (error) {
+        raise(error);
+      }
+
+      return data ?? [];
+    },
+    { forceRefresh },
+  );
+}
+
 export async function fetchItemsByIds(
   ids: string[],
   options: CacheOptions = {},
@@ -745,6 +791,14 @@ export async function createItem(
   invalidateCache("items");
   invalidateCache("itemsByIds");
 
+  // Trigger store refresh
+  try {
+    const { useItemsStore } = await import("@/stores/items-store");
+    useItemsStore.getState().refreshItems();
+  } catch (error) {
+    console.warn("Failed to refresh items store:", error);
+  }
+
   return record;
 }
 
@@ -770,6 +824,14 @@ export async function createOwnershipEvent(
 
   invalidateCache("ownershipEvents");
   invalidateCache("ownershipEventsForItem");
+
+  // Trigger store refresh
+  try {
+    const { useEventsStore } = await import("@/stores/events-store");
+    useEventsStore.getState().refreshEvents();
+  } catch (error) {
+    console.warn("Failed to refresh events store:", error);
+  }
 
   return record;
 }
@@ -885,6 +947,14 @@ export async function deleteOwnershipEvent(
 
   invalidateCache("ownershipEvents");
   invalidateCache("ownershipEventsForItem");
+
+  // Trigger store refresh
+  try {
+    const { useEventsStore } = await import("@/stores/events-store");
+    useEventsStore.getState().refreshEvents();
+  } catch (error) {
+    console.warn("Failed to refresh events store:", error);
+  }
 }
 
 export async function deleteItem(
@@ -905,4 +975,12 @@ export async function deleteItem(
   invalidateCache("itemsByIds");
   invalidateCache("ownershipEvents");
   invalidateCache("ownershipEventsForItem");
+
+  // Trigger store refresh
+  try {
+    const { useItemsStore } = await import("@/stores/items-store");
+    useItemsStore.getState().refreshItems();
+  } catch (error) {
+    console.warn("Failed to refresh items store:", error);
+  }
 }

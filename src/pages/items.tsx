@@ -10,16 +10,14 @@ import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } from "@/components/data-table-toolbar"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { Button } from "@/components/ui/button"
-import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateFormatter } from "@/lib/formatters"
 import { createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
+import { usePlayersStore } from "@/stores/players-store"
+import { useCosmeticsStore } from "@/stores/cosmetics-store"
+import { useItemsStore } from "@/stores/items-store"
 import {
-  fetchItems,
-  fetchItemsCount,
-  fetchCosmeticsByIds,
-  fetchPlayers,
   deleteItem,
   type CosmeticRecord,
   type ItemRecord,
@@ -259,35 +257,45 @@ export function ItemsPage() {
     isDeleting: false,
   })
 
-  // Use the data loader hook for managing loading states
-  const dataLoader = useDataLoader(async () => {
-    const [itemsData, playersData, totalCount] = await Promise.all([
-      fetchItems(),
-      fetchPlayers({ includeBanned: true }),
-      fetchItemsCount(),
-    ])
+  // Use stores for data management
+  const playersStore = usePlayersStore()
+  const cosmeticsStore = useCosmeticsStore()
+  const itemsStore = useItemsStore()
 
-    // Get unique cosmetic IDs from items
-    const uniqueCosmeticIds = Array.from(
-      new Set(
-        itemsData
-          .map((item) => item.cosmetic?.trim())
-          .filter((value): value is string => Boolean(value)),
-      ),
-    )
+  // Get data from stores
+  const items = useItemsStore((state) => state.items)
+  const players = usePlayersStore((state) => state.players)
+  const cosmetics = useCosmeticsStore((state) => state.cosmetics)
+  const totalCount = useItemsStore((state) => state.totalCount)
 
-    let cosmetics: CosmeticRecord[] = []
-    if (uniqueCosmeticIds.length) {
-      cosmetics = await fetchCosmeticsByIds(uniqueCosmeticIds)
-    }
-
-    return { items: itemsData, players: playersData, cosmetics, totalCount }
-  })
-
-  const { items, players, cosmetics, totalCount } = dataLoader.data || { items: [], players: [], cosmetics: [], totalCount: 0 }
+  // Get loading states
+  const isLoading = playersStore.isLoading || cosmeticsStore.isLoading || itemsStore.isLoading
+  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || itemsStore.isRefreshing
+  const error = playersStore.error || cosmeticsStore.error || itemsStore.error
   
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
+
+  // Fetch data on mount
+  React.useEffect(() => {
+    const fetchData = async () => {
+      await Promise.all([
+        playersStore.fetchPlayers({ includeBanned: true }),
+        itemsStore.fetchItems(),
+        cosmeticsStore.fetchCosmetics(),
+      ])
+    }
+    void fetchData()
+  }, [playersStore, itemsStore, cosmeticsStore])
+
+  // Refresh function
+  const handleRefresh = React.useCallback(async () => {
+    await Promise.all([
+      playersStore.refreshPlayers(),
+      itemsStore.refreshItems(),
+      cosmeticsStore.refreshCosmetics(),
+    ])
+  }, [playersStore, itemsStore, cosmeticsStore])
 
   // Create player lookup map
   const playerLookup = React.useMemo(() => createPlayerLookupMap(players), [players])
@@ -352,13 +360,13 @@ export function ItemsPage() {
         isDeleting: false,
       })
       // Refresh the data
-      void dataLoader.refresh()
+      void handleRefresh()
     } catch (error) {
       console.error("Failed to delete item:", error)
       setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
       // You might want to show a toast notification here
     }
-  }, [deleteDialog.itemId, dataLoader])
+  }, [deleteDialog.itemId, handleRefresh])
 
   const handleCancelDelete = React.useCallback(() => {
     setDeleteDialog({
@@ -561,7 +569,7 @@ export function ItemsPage() {
               label={card.label}
               value={card.value}
               detail={card.detail}
-              isLoading={dataLoader.isLoading}
+              isLoading={isLoading}
             />
           ))}
         </div>
@@ -578,15 +586,13 @@ export function ItemsPage() {
             </div>
 
           <div className="mt-6">
-            {dataLoader.error ? (
+            {error ? (
               <ErrorDisplay
-                error={dataLoader.error}
+                error={error}
                 title="Failed to load items data."
-                onRetry={() => {
-                  void dataLoader.load()
-                }}
+                onRetry={handleRefresh}
               />
-            ) : dataLoader.isLoading ? (
+            ) : isLoading ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 Loading items...
@@ -628,10 +634,8 @@ export function ItemsPage() {
                         label="Status"
                       />
                       <DataTableRefresh
-                        isRefreshing={dataLoader.isRefreshing}
-                        onRefresh={() => {
-                          void dataLoader.refresh()
-                        }}
+                        isRefreshing={isRefreshing}
+                        onRefresh={handleRefresh}
                       />
                     </DataTableToolbar>
                   )

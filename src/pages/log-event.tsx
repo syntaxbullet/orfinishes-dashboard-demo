@@ -162,8 +162,8 @@ export function LogEventPage() {
   const handleItemSelectionChange = React.useCallback(
     (itemWithMetadata: ItemWithMetadata | null) => {
       let nextFromSelection: PlayerSelection | null | undefined
-
       setSelectedItem(itemWithMetadata)
+      setSelectedFromPlayer({record: itemWithMetadata!.owner!, displayInfo: createPlayerDisplayInfo(itemWithMetadata!.owner!)})
       setFormData((prev) => {
         const next: FormData = {
           ...prev,
@@ -177,7 +177,7 @@ export function LogEventPage() {
           nextFromSelection = ownerRecord
             ? {
                 record: ownerRecord,
-                displayInfo: createPlayerDisplayInfo(ownerRecord, 32),
+                displayInfo: createPlayerDisplayInfo(ownerRecord),
               }
             : null
         }
@@ -796,7 +796,7 @@ function EventSummaryCard({
 
   return (
     <aside className="space-y-4 lg:sticky lg:top-6">
-      <div className="rounded-2xl border border-border/60 bg-muted/20 p-5 shadow-sm">
+      <div className="rounded-2xl border border-border/60 bg-muted/20 p-5 shadow-sm w-fit">
         <div className="flex items-start gap-3">
           <span
             className={cn(
@@ -889,7 +889,7 @@ function SummaryRow({ icon: Icon, iconClassName, label, children }: SummaryRowPr
       <div className="flex items-start gap-3">
         <span
           className={cn(
-            "flex size-9 items-center justify-center rounded-lg bg-muted text-muted-foreground",
+            "flex min-w-10 min-h-10 items-center justify-center rounded-lg bg-muted text-muted-foreground",
             iconClassName,
           )}
         >

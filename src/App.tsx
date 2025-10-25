@@ -4,6 +4,7 @@ import { createBrowserRouter, RouterProvider } from "react-router-dom";
 
 import { ThemeProvider } from "./components/theme-provider";
 import { AuthProvider } from "./contexts/auth-context";
+import { DataProvider } from "./providers/data-provider";
 import { RootLayout } from "./layouts/root-layout";
 import { DashboardPage } from "./pages/dashboard";
 import { CatalogPage } from "./pages/catalog";
@@ -49,7 +50,9 @@ export function App() {
   return (
     <ThemeProvider>
       <AuthProvider>
-        <RouterProvider router={router} />
+        <DataProvider>
+          <RouterProvider router={router} />
+        </DataProvider>
       </AuthProvider>
     </ThemeProvider>
   );

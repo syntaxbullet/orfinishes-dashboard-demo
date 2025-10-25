@@ -20,9 +20,9 @@ import { createPlayerLookupMap, resolvePlayerByIdentifier } from "@/lib/player-u
 import { formatItemForDisplay } from "@/lib/event-utils"
 import {
   fetchCosmeticsByIds,
-  fetchItems,
   fetchItemsByIds,
   fetchPlayers,
+  searchItems,
   type CosmeticRecord,
   type ItemRecord,
   type PlayerRecord,
@@ -42,40 +42,24 @@ export type ItemWithMetadata = {
   owner: PlayerRecord | null
 }
 
-const ITEM_FETCH_LIMIT = 250
+const SEARCH_DEBOUNCE_MS = 300
+const SEARCH_LIMIT = 50
 
-async function hydrateItemsWithMetadata(items: ItemRecord[]): Promise<ItemWithMetadata[]> {
-  if (items.length === 0) {
-    return []
-  }
+// Custom hook for debounced search
+function useDebounce<T>(value: T, delay: number): T {
+  const [debouncedValue, setDebouncedValue] = React.useState<T>(value)
 
-  const cosmeticIds = new Set<string>()
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedValue(value)
+    }, delay)
 
-  for (const item of items) {
-    const cosmeticId = item.cosmetic?.trim()
-    if (cosmeticId) {
-      cosmeticIds.add(cosmeticId)
+    return () => {
+      clearTimeout(handler)
     }
-  }
+  }, [value, delay])
 
-  const [cosmetics, players] = await Promise.all([
-    cosmeticIds.size ? fetchCosmeticsByIds(Array.from(cosmeticIds)) : Promise.resolve([]),
-    fetchPlayers({ includeBanned: true }),
-  ])
-
-  const cosmeticLookup = new Map(cosmetics.map((cosmetic) => [cosmetic.id, cosmetic]))
-  const playerLookup = createPlayerLookupMap(players)
-
-  return items.map((item) => {
-    const cosmetic = item.cosmetic ? cosmeticLookup.get(item.cosmetic.trim()) ?? null : null
-    const owner = item.current_owner ? resolvePlayerByIdentifier(item.current_owner, playerLookup) ?? null : null
-
-    return {
-      item,
-      cosmetic,
-      owner,
-    }
-  })
+  return debouncedValue
 }
 
 export function ItemSearchCombobox({
@@ -86,12 +70,15 @@ export function ItemSearchCombobox({
   onSelectionChange,
 }: ItemSearchComboboxProps) {
   const [open, setOpen] = React.useState(false)
+  const [searchQuery, setSearchQuery] = React.useState("")
   const [items, setItems] = React.useState<ItemWithMetadata[]>([])
   const [isLoading, setIsLoading] = React.useState(false)
   const [loadError, setLoadError] = React.useState<string | null>(null)
-  const [isTruncated, setIsTruncated] = React.useState(false)
   const [fallbackItem, setFallbackItem] = React.useState<ItemWithMetadata | null>(null)
   const [isFetchingSelection, setIsFetchingSelection] = React.useState(false)
+
+  // Debounce search query
+  const debouncedSearchQuery = useDebounce(searchQuery, SEARCH_DEBOUNCE_MS)
 
   const selectedFromList = React.useMemo(() => {
     if (!value) {
@@ -102,34 +89,71 @@ export function ItemSearchCombobox({
 
   const resolvedSelectedItem = selectedFromList ?? fallbackItem
 
-  const handleLoad = React.useCallback(async () => {
-    setIsLoading(true)
-    setLoadError(null)
-
-    try {
-      const fetchedItems = await fetchItems({ limit: ITEM_FETCH_LIMIT })
-      const hydrated = await hydrateItemsWithMetadata(fetchedItems)
-      setItems(hydrated)
-      setIsTruncated(fetchedItems.length >= ITEM_FETCH_LIMIT)
-    } catch (error) {
-      console.error("Failed to load items for combobox:", error)
-      const message = error instanceof Error ? error.message : "Unknown error loading items."
-      setLoadError(message)
-    } finally {
-      setIsLoading(false)
-    }
-  }, [])
-
+  // Search items with debounced query
   React.useEffect(() => {
     if (!open) {
       return
     }
 
-    if (!items.length && !isLoading && !loadError) {
-      void handleLoad()
-    }
-  }, [handleLoad, isLoading, items.length, loadError, open])
+    const performSearch = async () => {
+      setIsLoading(true)
+      setLoadError(null)
 
+      try {
+        const fetchedItems = await searchItems({
+          search: debouncedSearchQuery || undefined,
+          limit: SEARCH_LIMIT,
+        })
+        
+        // The searchItems function already returns items with joined cosmetic and player data
+        // so we need to transform them to match our ItemWithMetadata interface
+        const transformedItems: ItemWithMetadata[] = fetchedItems.map((item: ItemRecord & { cosmetics?: CosmeticRecord; players?: PlayerRecord }) => ({
+          item: {
+            id: item.id,
+            cosmetic: item.cosmetic,
+            finish_type: item.finish_type,
+            current_owner: item.current_owner,
+            minted_by: item.minted_by,
+            minted_at: item.minted_at,
+            created_at: item.created_at,
+            updated_at: item.updated_at,
+          },
+          cosmetic: item.cosmetics ? {
+            id: item.cosmetics.id || item.cosmetic,
+            name: item.cosmetics.name,
+            type: item.cosmetics.type,
+            source: item.cosmetics.source || "unknown",
+            exclusive_to_year: item.cosmetics.exclusive_to_year,
+            created_at: item.cosmetics.created_at,
+            updated_at: item.cosmetics.updated_at,
+          } : null,
+          owner: item.players && item.players.id ? {
+            id: item.players.id,
+            display_name: item.players.display_name,
+            minecraft_uuid: item.players.minecraft_uuid,
+            is_banned: item.players.is_banned,
+            avatar_storage_path: item.players.avatar_storage_path,
+            avatar_synced_at: item.players.avatar_synced_at,
+            profile_synced_at: item.players.profile_synced_at,
+            created_at: item.players.created_at,
+            updated_at: item.players.updated_at,
+          } : null,
+        }))
+
+        setItems(transformedItems)
+      } catch (error) {
+        console.error("Failed to search items:", error)
+        const message = error instanceof Error ? error.message : "Unknown error searching items."
+        setLoadError(message)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    void performSearch()
+  }, [open, debouncedSearchQuery])
+
+  // Fetch selected item when value changes
   React.useEffect(() => {
     if (!value || selectedFromList) {
       setFallbackItem(null)
@@ -149,9 +173,25 @@ export function ItemSearchCombobox({
           return
         }
 
-        const hydrated = await hydrateItemsWithMetadata([itemRecord])
+        // Fetch cosmetic and player data for the selected item
+        const cosmeticId = itemRecord.cosmetic?.trim()
+        const [cosmetics, players] = await Promise.all([
+          cosmeticId ? fetchCosmeticsByIds([cosmeticId]) : Promise.resolve([]),
+          fetchPlayers({ includeBanned: true }),
+        ])
+
+        const cosmetic = cosmetics[0] || null
+        const playerLookup = createPlayerLookupMap(players)
+        const owner = itemRecord.current_owner 
+          ? resolvePlayerByIdentifier(itemRecord.current_owner, playerLookup) 
+          : null
+
         if (!isCancelled) {
-          setFallbackItem(hydrated[0] ?? null)
+          setFallbackItem({
+            item: itemRecord,
+            cosmetic,
+            owner,
+          })
         }
       } catch (error) {
         console.error("Failed to fetch selected item metadata:", error)
@@ -220,12 +260,16 @@ export function ItemSearchCombobox({
       </PopoverTrigger>
       <PopoverContent className="w-[min(420px,90vw)] p-0" align="start" sideOffset={4}>
         <Command className="max-h-80 overflow-hidden">
-          <CommandInput placeholder="Search by cosmetic, finish type, or owner..." />
+          <CommandInput 
+            placeholder="Search by cosmetic, finish type, or owner..." 
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
           <CommandList className="max-h-72 overflow-y-auto">
             {isLoading ? (
               <div className="flex items-center gap-2 px-4 py-6 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading items…
+                {searchQuery ? "Searching items…" : "Loading items…"}
               </div>
             ) : loadError ? (
               <div className="space-y-2 px-4 py-6 text-sm text-muted-foreground">
@@ -234,7 +278,8 @@ export function ItemSearchCombobox({
                   type="button"
                   className="text-sm font-medium text-primary underline underline-offset-4"
                   onClick={() => {
-                    void handleLoad()
+                    setSearchQuery("")
+                    setLoadError(null)
                   }}
                 >
                   Try again
@@ -242,7 +287,9 @@ export function ItemSearchCombobox({
               </div>
             ) : (
               <>
-                <CommandEmpty>No items found.</CommandEmpty>
+                <CommandEmpty>
+                  {searchQuery ? "No items found matching your search." : "Start typing to search items..."}
+                </CommandEmpty>
                 {value ? (
                   <CommandGroup heading="Actions">
                     <CommandItem
@@ -285,9 +332,9 @@ export function ItemSearchCombobox({
                     )
                   })}
                 </CommandGroup>
-                {isTruncated ? (
+                {items.length >= SEARCH_LIMIT ? (
                   <div className="px-4 pb-3 text-xs text-muted-foreground">
-                    Showing first {ITEM_FETCH_LIMIT} results. Refine your search to narrow things down.
+                    Showing first {SEARCH_LIMIT} results. Refine your search to narrow things down.
                   </div>
                 ) : null}
               </>

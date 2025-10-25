@@ -10,19 +10,17 @@ import { ErrorDisplay } from "@/components/error-display"
 import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } from "@/components/data-table-toolbar"
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { Button } from "@/components/ui/button"
-import { useDataLoader } from "@/hooks/use-data-loader"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
 import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
 import { createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
+import { usePlayersStore } from "@/stores/players-store"
+import { useCosmeticsStore } from "@/stores/cosmetics-store"
+import { useItemsStore } from "@/stores/items-store"
+import { useEventsStore } from "@/stores/events-store"
 import {
-  fetchCosmeticsByIds,
-  fetchItemsByIds,
-  fetchOwnershipEvents,
-  fetchPlayers,
   deleteOwnershipEvent,
   type CosmeticRecord,
-  type ItemRecord,
   type OwnershipAction,
   type PlayerRecord,
 } from "@/utils/supabase"
@@ -314,54 +312,48 @@ export function EventsPage() {
     isDeleting: false,
   })
 
-  // Use the data loader hook for managing loading states
-  const dataLoader = useDataLoader(async () => {
-    const eventsData = await fetchOwnershipEvents({})
-    
-    const uniqueItemIds = Array.from(
-      new Set(
-        eventsData
-          .map((event) => (event.item_id ? event.item_id.trim() : ""))
-          .filter((value) => value.length > 0),
-      ),
-    )
+  // Use stores for data management
+  const playersStore = usePlayersStore()
+  const cosmeticsStore = useCosmeticsStore()
+  const itemsStore = useItemsStore()
+  const eventsStore = useEventsStore()
 
-    const [playersData, itemsData] = await Promise.allSettled([
-      fetchPlayers({ includeBanned: true }),
-      uniqueItemIds.length
-        ? fetchItemsByIds(uniqueItemIds)
-        : Promise.resolve([] as ItemRecord[]),
-    ])
+  // Get data from stores
+  const events = useEventsStore((state) => state.events)
+  const players = usePlayersStore((state) => state.players)
+  const items = useItemsStore((state) => state.items)
+  const cosmetics = useCosmeticsStore((state) => state.cosmetics)
 
-    const players = playersData.status === "fulfilled" ? playersData.value : []
-    const items = itemsData.status === "fulfilled" ? itemsData.value : []
-
-    let cosmetics: CosmeticRecord[] = []
-    if (items.length) {
-      const uniqueCosmeticIds = Array.from(
-        new Set(
-          items
-            .map((item) => (item.cosmetic ? item.cosmetic.trim() : ""))
-            .filter((value) => value.length > 0),
-        ),
-      )
-
-      if (uniqueCosmeticIds.length) {
-        try {
-          cosmetics = await fetchCosmeticsByIds(uniqueCosmeticIds)
-        } catch (cosmeticError) {
-          console.error("Failed to load cosmetics for ownership events table", cosmeticError)
-        }
-      }
-    }
-
-    return { events: eventsData, players, items, cosmetics }
-  })
-
-  const { events, players, items, cosmetics } = dataLoader.data || { events: [], players: [], items: [], cosmetics: [] }
+  // Get loading states
+  const isLoading = playersStore.isLoading || cosmeticsStore.isLoading || itemsStore.isLoading || eventsStore.isLoading
+  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || itemsStore.isRefreshing || eventsStore.isRefreshing
+  const error = playersStore.error || cosmeticsStore.error || itemsStore.error || eventsStore.error
   
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
+
+  // Fetch data on mount
+  React.useEffect(() => {
+    const fetchData = async () => {
+      await Promise.all([
+        playersStore.fetchPlayers({ includeBanned: true }),
+        eventsStore.fetchEvents({}),
+        itemsStore.fetchItems(),
+        cosmeticsStore.fetchCosmetics(),
+      ])
+    }
+    void fetchData()
+  }, [playersStore, eventsStore, itemsStore, cosmeticsStore])
+
+  // Refresh function
+  const handleRefresh = React.useCallback(async () => {
+    await Promise.all([
+      playersStore.refreshPlayers(),
+      eventsStore.refreshEvents(),
+      itemsStore.refreshItems(),
+      cosmeticsStore.refreshCosmetics(),
+    ])
+  }, [playersStore, eventsStore, itemsStore, cosmeticsStore])
 
   // Create player lookup map using the new utility
   const playerLookup = React.useMemo(() => createPlayerLookupMap(players), [players])
@@ -402,13 +394,13 @@ export function EventsPage() {
         isDeleting: false,
       })
       // Refresh the data
-      void dataLoader.refresh()
+      void handleRefresh()
     } catch (error) {
       console.error("Failed to delete ownership event:", error)
       setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
       // You might want to show a toast notification here
     }
-  }, [deleteDialog.eventId, dataLoader])
+  }, [deleteDialog.eventId, handleRefresh])
 
   const handleCancelDelete = React.useCallback(() => {
     setDeleteDialog({
@@ -522,7 +514,7 @@ export function EventsPage() {
     return tableData.filter((event) => event.action === actionFilter)
   }, [actionFilter, tableData])
 
-  const isBusy = dataLoader.isLoading || dataLoader.isRefreshing
+  const isBusy = isLoading || isRefreshing
 
   const statCards = React.useMemo(() => {
     if (!tableData.length) {
@@ -649,18 +641,16 @@ export function EventsPage() {
         </div>
 
         <div className="mt-6">
-          {dataLoader.error ? (
+          {error ? (
             <ErrorDisplay
-              error={dataLoader.error}
+              error={error}
               title="Failed to load ownership events."
-              onRetry={() => {
-                void dataLoader.load()
-              }}
+              onRetry={handleRefresh}
             />
           ) : isBusy ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {dataLoader.isRefreshing ? "Refreshing ownership events..." : "Loading ownership events..."}
+              {isRefreshing ? "Refreshing ownership events..." : "Loading ownership events..."}
             </div>
           ) : (
             <DataTable
@@ -704,10 +694,8 @@ export function EventsPage() {
                       label="Action"
                     />
                     <DataTableRefresh
-                      isRefreshing={dataLoader.isRefreshing}
-                      onRefresh={() => {
-                        void dataLoader.refresh()
-                      }}
+                      isRefreshing={isRefreshing}
+                      onRefresh={handleRefresh}
                     />
                   </DataTableToolbar>
                 )
