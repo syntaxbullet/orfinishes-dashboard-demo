@@ -4,8 +4,8 @@ import {
   type PostgrestSingleResponse,
 } from "@supabase/supabase-js";
 
-const supabaseUrl = Bun.env.SUPABASE_URL;
-const supabaseKey = Bun.env.SUPABASE_PUBLISHABLE_DEFAULT_KEY;
+const supabaseUrl = 'https://stnsrlzqderisgtcjdhs.supabase.co';
+const supabaseKey = 'sb_publishable_fK_uCGAOLreVfua3lzd4_A_5vhBlnIL';
 
 export const supabase = createClient(supabaseUrl!, supabaseKey!);
 
