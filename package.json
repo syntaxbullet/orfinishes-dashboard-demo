@@ -6,9 +6,8 @@
   "scripts": {
     "dev": "bun --hot src/index.tsx",
     "start": "NODE_ENV=production bun src/index.tsx",
-    "build": "bun run build.ts",
-    "lint": "eslint --cache --cache-location .eslintcache 'src/**/*.{ts,tsx,js,jsx}' build.ts",
-    "lint:fix": "eslint --fix --cache --cache-location .eslintcache 'src/**/*.{ts,tsx,js,jsx}' build.ts"
+    "lint": "eslint --cache --cache-location .eslintcache 'src/**/*.{ts,tsx,js,jsx}'",
+    "lint:fix": "eslint --fix --cache --cache-location .eslintcache 'src/**/*.{ts,tsx,js,jsx}'"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.1.15",

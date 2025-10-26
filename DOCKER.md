@@ -34,6 +34,7 @@ Create a `.env` file with the following variables:
 # Supabase Configuration
 SUPABASE_URL=your_supabase_url_here
 SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_PUBLISHABLE_DEFAULT_KEY=your_supabase_publishable_key_here
 SUPABASE_EDGE_FUNCTION_URL=your_supabase_edge_function_url_here
 SUPABASE_FUNCTIONS_URL=your_supabase_functions_url_here
 
