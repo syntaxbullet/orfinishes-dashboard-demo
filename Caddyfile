@@ -45,8 +45,6 @@
         -Server
     }
     
-    # Handle client-side routing (SPA)
-    try_files {path} /
     
     # Cache static assets
     @static {
