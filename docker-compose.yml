@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  # Caddy reverse proxy
+  caddy:
+    image: caddy:2-alpine
+    container_name: orfinishes-caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - dashboard
+    restart: unless-stopped
+    networks:
+      - orfinishes-network
+
+  # Dashboard application
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orfinishes-dashboard
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - SUPABASE_URL=${SUPABASE_URL}
+      - SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY}
+      - SUPABASE_EDGE_FUNCTION_URL=${SUPABASE_EDGE_FUNCTION_URL}
+      - SUPABASE_FUNCTIONS_URL=${SUPABASE_FUNCTIONS_URL}
+    expose:
+      - "3000"
+    restart: unless-stopped
+    networks:
+      - orfinishes-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/hello"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+volumes:
+  caddy_data:
+  caddy_config:
+
+networks:
+  orfinishes-network:
+    driver: bridge
