@@ -1,5 +1,4 @@
 admin.orfinishes.com {
-    # Send all traffic to your Bun server
     reverse_proxy dashboard:3000 {
         health_uri /api/hello
         health_interval 30s
@@ -28,3 +27,4 @@ admin.orfinishes.com {
         format json
     }
 }
+
