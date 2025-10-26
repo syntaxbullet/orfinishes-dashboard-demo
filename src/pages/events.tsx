@@ -356,7 +356,7 @@ export function EventsPage() {
     const fetchData = async () => {
       await Promise.all([
         playersStore.fetchPlayers({ includeBanned: true }),
-        eventsStore.fetchEvents({}),
+        eventsStore.fetchEvents(), // Force refresh to get all events without limit
         itemsStore.fetchItems(),
         cosmeticsStore.fetchCosmetics(),
       ])
@@ -371,7 +371,7 @@ export function EventsPage() {
     try {
       await Promise.all([
         playersStore.refreshPlayers(),
-        eventsStore.refreshEvents(),
+        eventsStore.fetchEvents(), // Force refresh to get all events without limit
         itemsStore.refreshItems(),
         cosmeticsStore.refreshCosmetics(),
       ])
