@@ -3,8 +3,7 @@
 
 # Global options
 {
-    # Enable automatic HTTPS
-    auto_https on
+    # Enable automatic HTTPS (default behavior)
     # Log level
     log {
         level INFO
