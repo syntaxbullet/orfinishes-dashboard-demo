@@ -1,7 +1,6 @@
 import * as React from "react"
 import {
   Loader2,
-  PackageSearch,
   RefreshCw,
   ShieldCheck,
   Sparkles,
@@ -28,6 +27,8 @@ import type { PlayerRecord } from "@/utils/supabase"
 
 
 export function DashboardPage() {
+  const [isRefreshingLocal, setIsRefreshingLocal] = React.useState(false)
+  
   // Use stores for data management
   const playersStore = usePlayersStore()
   const cosmeticsStore = useCosmeticsStore()
@@ -42,7 +43,7 @@ export function DashboardPage() {
 
   // Get loading states
   const isLoading = playersStore.isLoading || cosmeticsStore.isLoading || eventsStore.isLoading || snapshotsStore.isLoading
-  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || eventsStore.isRefreshing || snapshotsStore.isRefreshing
+  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || eventsStore.isRefreshing || snapshotsStore.isRefreshing || isRefreshingLocal
   const error = playersStore.error || cosmeticsStore.error || eventsStore.error || snapshotsStore.error
   
   // Use the player profile hook for modal management
@@ -65,12 +66,29 @@ export function DashboardPage() {
 
   // Refresh function
   const handleRefresh = React.useCallback(async () => {
-    await Promise.all([
-      playersStore.refreshPlayers(),
-      cosmeticsStore.refreshCosmetics(),
-      eventsStore.refreshEvents(),
-      snapshotsStore.refreshSnapshots(),
-    ])
+    const startTime = Date.now()
+    setIsRefreshingLocal(true)
+
+    try {
+      await Promise.all([
+        playersStore.refreshPlayers(),
+        cosmeticsStore.refreshCosmetics(),
+        eventsStore.refreshEvents(),
+        snapshotsStore.refreshSnapshots(),
+      ])
+
+      const refreshTime = Date.now() - startTime
+      console.warn(`Dashboard refresh completed in ${refreshTime}ms, adding delay...`)
+
+      // Add a small delay to make the refresh animation more visible
+      await new Promise(resolve => setTimeout(resolve, 1000))
+
+      console.warn('Dashboard delay completed')
+    } catch (error) {
+      console.error('Dashboard refresh failed:', error)
+    } finally {
+      setIsRefreshingLocal(false)
+    }
   }, [playersStore, cosmeticsStore, eventsStore, snapshotsStore])
   const dayInMs = 24 * 60 * 60 * 1000
   const sevenDaysAgo = nowTimestamp - 7 * dayInMs
@@ -211,77 +229,9 @@ export function DashboardPage() {
     }
   }, [finishInsights.totalItems, finishInsights.unassignedItems])
 
-  const catalogHighlights = React.useMemo(() => {
-    const exclusiveCosmetics = cosmetics.filter(
-      (cosmetic) => cosmetic.exclusive_to_year !== null,
-    )
-
-    const exclusiveShare = cosmetics.length > 0
-      ? exclusiveCosmetics.length / cosmetics.length
-      : 0
-
-    const monthAgo = thirtyDaysAgo
-    const latestEntries = cosmetics
-      .map((cosmetic) => {
-        const lastTouched = parseTimestamp(cosmetic.updated_at) ??
-          parseTimestamp(cosmetic.created_at) ??
-          0
-        return {
-          id: cosmetic.id,
-          name: cosmetic.name,
-          type: cosmetic.type,
-          exclusiveYear: cosmetic.exclusive_to_year,
-          lastTouched,
-        }
-      })
-      .filter((entry) => entry.lastTouched > 0)
-      .sort((a, b) => b.lastTouched - a.lastTouched)
-      .slice(0, 3)
-
-    const freshExclusiveCount = exclusiveCosmetics.filter((cosmetic) => {
-      const lastTouched = parseTimestamp(cosmetic.updated_at) ??
-        parseTimestamp(cosmetic.created_at)
-      return lastTouched !== null && isWithinTimeWindow(lastTouched, monthAgo)
-    }).length
-
-    const typeMap = new Map<string, number>()
-    for (const cosmetic of cosmetics) {
-      const type = cosmetic.type?.trim() || "Uncategorized"
-      typeMap.set(type, (typeMap.get(type) ?? 0) + 1)
-    }
-
-    const topTypes = Array.from(typeMap.entries())
-      .map(([type, count]) => ({
-        type,
-        count,
-        share: cosmetics.length > 0 ? count / cosmetics.length : 0,
-      }))
-      .sort((a, b) => b.count - a.count)
-      .slice(0, 3)
-
-    return {
-      exclusiveShare,
-      freshExclusiveCount,
-      latestEntries,
-      topTypes,
-    }
-  }, [cosmetics, thirtyDaysAgo])
 
   const overviewMetrics = React.useMemo(() => {
-    const exclusiveDetail = percentFormatter.format(
-      catalogHighlights.exclusiveShare || 0,
-    )
-
-
-    const activationRate = activationInsights.activationRate
-
     return [
-      {
-        label: "Cosmetics Available",
-        icon: PackageSearch,
-        value: numberFormatter.format(cosmetics.length),
-        detail: `Exclusive share ${exclusiveDetail}`,
-      },
       {
         label: "Total Items Tracked",
         icon: Sparkles,
@@ -308,27 +258,8 @@ export function DashboardPage() {
           finishInsights.totalItems,
         )}`,
       },
-      {
-        label: "Engagement rate",
-        icon: TrendingUp,
-        value: activationRate !== null
-          ? percentFormatter.format(activationRate)
-          : "—",
-        detail: `${numberFormatter.format(
-          activationInsights.engagedNewPlayers,
-        )} of ${numberFormatter.format(
-          activationInsights.newPlayersLast30,
-        )} players engaged in the last 30 days`,
-      },
     ]
-  }, [
-    activationInsights,
-    catalogHighlights.exclusiveShare,
-    cosmetics.length,
-    finishInsights.totalItems,
-    ownershipCoverage.assigned,
-    ownershipCoverage.coverage,
-  ])
+  }, [activationInsights, finishInsights.totalItems, ownershipCoverage.assigned, ownershipCoverage.coverage])
 
   const playerLeaderboard = React.useMemo(() => {
     const ownershipMap = new Map<
@@ -538,7 +469,7 @@ export function DashboardPage() {
                   value={metric.value}
                   detail={metric.detail}
                   icon={metric.icon}
-                  isLoading={isLoading}
+                  isLoading={isLoading || isRefreshing}
                 />
               ))}
             </div>
@@ -566,8 +497,12 @@ export function DashboardPage() {
             </div>
 
             <div className="rounded-xl border border-border/60 bg-card p-3 sm:p-6 shadow-sm">
-
-              {playerLeaderboard.rows.length ? (
+              {isRefreshing ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Refreshing leaderboard...
+                </div>
+              ) : playerLeaderboard.rows.length ? (
                 <div className="space-y-4">
                   {playerLeaderboard.rows.map((entry, index) => {
                     const rank = index + 1

@@ -58,12 +58,12 @@ export function generateTimeSeriesData(
   while (current <= endDate) {
     let periodKey: string
     if (groupBy === "day") {
-      periodKey = current.toISOString().split("T")[0]
+      periodKey = current.toISOString().split("T")[0]!
       current.setDate(current.getDate() + 1)
     } else if (groupBy === "week") {
       const weekStart = new Date(current)
       weekStart.setDate(current.getDate() - current.getDay())
-      periodKey = weekStart.toISOString().split("T")[0]
+      periodKey = weekStart.toISOString().split("T")[0]!
       current.setDate(current.getDate() + 7)
     } else { // month
       periodKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`
@@ -90,7 +90,7 @@ export function generateTimeSeriesData(
   
   for (const event of events) {
     const timestamp = parseTimestamp(event.occurred_at)
-    if (timestamp === null || !isWithinTimeWindow(timestamp, timeWindow)) {
+    if (timestamp === null || !isWithinTimeWindow(timestamp, timeWindow.start)) {
       continue
     }
     
@@ -98,11 +98,11 @@ export function generateTimeSeriesData(
     const eventDate = new Date(timestamp)
     
     if (groupBy === "day") {
-      periodKey = eventDate.toISOString().split("T")[0]
+      periodKey = eventDate.toISOString().split("T")[0]!
     } else if (groupBy === "week") {
       const weekStart = new Date(eventDate)
       weekStart.setDate(eventDate.getDate() - eventDate.getDay())
-      periodKey = weekStart.toISOString().split("T")[0]
+      periodKey = weekStart.toISOString().split("T")[0]!
     } else { // month
       periodKey = `${eventDate.getFullYear()}-${String(eventDate.getMonth() + 1).padStart(2, "0")}`
     }
@@ -169,12 +169,12 @@ export function generatePlayerGrowthData(
   while (current <= endDate) {
     let periodKey: string
     if (groupBy === "day") {
-      periodKey = current.toISOString().split("T")[0]
+      periodKey = current.toISOString().split("T")[0]!
       current.setDate(current.getDate() + 1)
     } else if (groupBy === "week") {
       const weekStart = new Date(current)
       weekStart.setDate(current.getDate() - current.getDay())
-      periodKey = weekStart.toISOString().split("T")[0]
+      periodKey = weekStart.toISOString().split("T")[0]!
       current.setDate(current.getDate() + 7)
     } else { // month
       periodKey = `${current.getFullYear()}-${String(current.getMonth() + 1).padStart(2, "0")}`
@@ -192,7 +192,7 @@ export function generatePlayerGrowthData(
   let cumulativePlayers = 0
   for (const player of players) {
     const createdAt = parseTimestamp(player.created_at)
-    if (createdAt === null || !isWithinTimeWindow(createdAt, timeWindow)) {
+    if (createdAt === null || !isWithinTimeWindow(createdAt, timeWindow.start)) {
       continue
     }
     
@@ -200,11 +200,11 @@ export function generatePlayerGrowthData(
     const playerDate = new Date(createdAt)
     
     if (groupBy === "day") {
-      periodKey = playerDate.toISOString().split("T")[0]
+      periodKey = playerDate.toISOString().split("T")[0]!
     } else if (groupBy === "week") {
       const weekStart = new Date(playerDate)
       weekStart.setDate(playerDate.getDate() - playerDate.getDay())
-      periodKey = weekStart.toISOString().split("T")[0]
+      periodKey = weekStart.toISOString().split("T")[0]!
     } else { // month
       periodKey = `${playerDate.getFullYear()}-${String(playerDate.getMonth() + 1).padStart(2, "0")}`
     }
@@ -266,7 +266,7 @@ export function generateActivityHeatmapData(
   
   for (const event of events) {
     const timestamp = parseTimestamp(event.occurred_at)
-    if (timestamp === null || !isWithinTimeWindow(timestamp, timeWindow)) {
+    if (timestamp === null || !isWithinTimeWindow(timestamp, timeWindow.start)) {
       continue
     }
     

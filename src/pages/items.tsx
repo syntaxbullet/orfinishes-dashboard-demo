@@ -1,6 +1,7 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 import { DataTable } from "@/components/ui/data-table"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
 import { ItemDetailSheet } from "@/components/item-detail-sheet"
@@ -11,6 +12,7 @@ import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } 
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { Button } from "@/components/ui/button"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
+import { getDatabaseErrorMessage } from "@/lib/error-utils"
 import { numberFormatter, dateFormatter } from "@/lib/formatters"
 import { createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
@@ -243,6 +245,7 @@ export function ItemsPage() {
   const [selectedItem, setSelectedItem] = React.useState<ItemRecord | null>(null)
   const [isItemSheetOpen, setIsItemSheetOpen] = React.useState(false)
   const [timeReference, setTimeReference] = React.useState(() => Date.now())
+  const [isRefreshingLocal, setIsRefreshingLocal] = React.useState(false)
   
   // Delete confirmation dialog state
   const [deleteDialog, setDeleteDialog] = React.useState<{
@@ -270,8 +273,9 @@ export function ItemsPage() {
 
   // Get loading states
   const isLoading = playersStore.isLoading || cosmeticsStore.isLoading || itemsStore.isLoading
-  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || itemsStore.isRefreshing
+  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || itemsStore.isRefreshing || isRefreshingLocal
   const error = playersStore.error || cosmeticsStore.error || itemsStore.error
+  
   
   // Use the player profile hook for modal management
   const playerProfile = usePlayerProfile(players)
@@ -290,11 +294,22 @@ export function ItemsPage() {
 
   // Refresh function
   const handleRefresh = React.useCallback(async () => {
-    await Promise.all([
-      playersStore.refreshPlayers(),
-      itemsStore.refreshItems(),
-      cosmeticsStore.refreshCosmetics(),
-    ])
+    setIsRefreshingLocal(true)
+    
+    try {
+      await Promise.all([
+        playersStore.refreshPlayers(),
+        itemsStore.refreshItems(),
+        cosmeticsStore.refreshCosmetics(),
+      ])
+      
+      // Add a small delay to make the refresh animation more visible
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (error) {
+      console.error('❌ Refresh failed:', error)
+    } finally {
+      setIsRefreshingLocal(false)
+    }
   }, [playersStore, itemsStore, cosmeticsStore])
 
   // Create player lookup map
@@ -359,12 +374,22 @@ export function ItemsPage() {
         itemName: "",
         isDeleting: false,
       })
+      
+      // Show success toast
+      toast.success("Item deleted successfully", {style: {color: "var(--success-text)"}})
+      
       // Refresh the data
       void handleRefresh()
     } catch (error) {
-      console.error("Failed to delete item:", error)
-      setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
-      // You might want to show a toast notification here
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false, open: false }))
+      
+      const errorMessage = getDatabaseErrorMessage(error, "delete this item")
+      
+      // Show error toast
+      toast.error("Failed to delete item", {
+        style: {color: "var(--error-text)"},
+        description: errorMessage
+      })
     }
   }, [deleteDialog.itemId, handleRefresh])
 
@@ -557,8 +582,7 @@ export function ItemsPage() {
             Items
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground">
-            Browse all unboxed items with their finish types and ownership status
-            sourced from `public.items`.
+            Every item here has its own unique history of ownership.
           </p>
         </header>
 
@@ -569,7 +593,7 @@ export function ItemsPage() {
               label={card.label}
               value={card.value}
               detail={card.detail}
-              isLoading={isLoading}
+              isLoading={isLoading || isRefreshing}
             />
           ))}
         </div>
@@ -592,10 +616,10 @@ export function ItemsPage() {
                 title="Failed to load items data."
                 onRetry={handleRefresh}
               />
-            ) : isLoading ? (
+            ) : isLoading || isRefreshing ? (
               <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Loading items...
+                {isRefreshing ? "Refreshing items..." : "Loading items..."}
               </div>
             ) : (
               <DataTable

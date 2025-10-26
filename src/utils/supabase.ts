@@ -796,7 +796,7 @@ export async function createItem(
     const { useItemsStore } = await import("@/stores/items-store");
     useItemsStore.getState().refreshItems();
   } catch (error) {
-    console.warn("Failed to refresh items store:", error);
+    console.error("Failed to refresh items store:", error);
   }
 
   return record;
@@ -830,7 +830,7 @@ export async function createOwnershipEvent(
     const { useEventsStore } = await import("@/stores/events-store");
     useEventsStore.getState().refreshEvents();
   } catch (error) {
-    console.warn("Failed to refresh events store:", error);
+    console.error("Failed to refresh events store:", error);
   }
 
   return record;
@@ -936,15 +936,18 @@ export async function deleteOwnershipEvent(
 ): Promise<void> {
   const normalizedId = id.trim();
   
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from("ownership_events")
     .delete()
-    .eq("id", normalizedId);
+    .eq("id", normalizedId)
+    .select("id");
 
   if (error) {
     raise(error);
   }
-
+  if (data === null || (data as unknown as unknown[]).length === 0) {
+    throw new Error("You do not have permission to delete this ownership event");
+  }
   invalidateCache("ownershipEvents");
   invalidateCache("ownershipEventsForItem");
 
@@ -953,7 +956,7 @@ export async function deleteOwnershipEvent(
     const { useEventsStore } = await import("@/stores/events-store");
     useEventsStore.getState().refreshEvents();
   } catch (error) {
-    console.warn("Failed to refresh events store:", error);
+    console.error("Failed to refresh events store:", error);
   }
 }
 
@@ -962,15 +965,18 @@ export async function deleteItem(
 ): Promise<void> {
   const normalizedId = id.trim();
   
-  const { error } = await supabase
+  const { error, data } = await supabase
     .from("items")
     .delete()
-    .eq("id", normalizedId);
+    .eq("id", normalizedId)
+    .select("id");
 
   if (error) {
     raise(error);
   }
-
+  if (data === null || (data as unknown as unknown[]).length === 0) {
+    throw new Error("You do not have permission to delete this item");
+  }
   invalidateCache("items");
   invalidateCache("itemsByIds");
   invalidateCache("ownershipEvents");
@@ -981,6 +987,6 @@ export async function deleteItem(
     const { useItemsStore } = await import("@/stores/items-store");
     useItemsStore.getState().refreshItems();
   } catch (error) {
-    console.warn("Failed to refresh items store:", error);
+    console.error("Failed to refresh items store:", error);
   }
 }

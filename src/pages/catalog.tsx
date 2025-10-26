@@ -192,8 +192,7 @@ export function CatalogPage() {
           Cosmetics Catalog
         </h1>
         <p className="text-sm text-muted-foreground">
-          Grounded readout of `public.cosmetics`, including exclusive programs
-          and the most recently touched entries.
+          This page displays all cosmetics for which finishes are available.
         </p>
       </header>
 

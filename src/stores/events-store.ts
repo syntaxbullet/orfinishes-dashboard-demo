@@ -113,7 +113,7 @@ export const useEventsStore = create<EventsStore>()(
     },
     
     fetchEvents: async (options = {}) => {
-      const { limit = 400, forceRefresh = false } = options
+      const { limit, forceRefresh = false } = options
       const state = get()
       
       // Don't fetch if already loading/refreshing
@@ -135,7 +135,7 @@ export const useEventsStore = create<EventsStore>()(
       })
       
       try {
-        const events = await fetchOwnershipEvents({ limit })
+        const events = await fetchOwnershipEvents(limit ? { limit } : {})
         get().setEvents(events)
       } catch (error) {
         set({

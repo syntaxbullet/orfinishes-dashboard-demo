@@ -15,6 +15,7 @@ import {
 } from "lucide-react"
 import type { LucideIcon } from "lucide-react"
 import { useNavigate } from "react-router-dom"
+import { toast } from "sonner"
 
 import { PlayerAvatar } from "@/components/player-avatar"
 import { PlayerCombobox, type PlayerSelection } from "@/components/log-event-form/player-combobox"
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
 import { ACTION_DESCRIPTIONS, ACTION_LABELS, validateEventData } from "@/lib/event-utils"
+import { getDatabaseErrorMessage } from "@/lib/error-utils"
 import { dateTimeFormatter } from "@/lib/formatters"
 import { createPlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
@@ -108,7 +110,6 @@ export function LogEventPage() {
   const navigate = useNavigate()
   const [formData, setFormData] = React.useState<FormData>(() => createInitialFormState())
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [errors, setErrors] = React.useState<string[]>([])
 
   const [selectedItem, setSelectedItem] = React.useState<ItemWithMetadata | null>(null)
   const [selectedCosmetic, setSelectedCosmetic] = React.useState<CosmeticRecord | null>(null)
@@ -127,7 +128,6 @@ export function LogEventPage() {
 
   const resetForm = React.useCallback(() => {
     setFormData(createInitialFormState())
-    setErrors([])
     setSelectedItem(null)
     setSelectedCosmetic(null)
     setSelectedFromPlayer(null)
@@ -156,7 +156,6 @@ export function LogEventPage() {
     setSelectedCosmetic(null)
     setSelectedFromPlayer(null)
     setSelectedToPlayer(null)
-    setErrors([])
   }, [])
 
   const handleItemSelectionChange = React.useCallback(
@@ -194,7 +193,6 @@ export function LogEventPage() {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault()
-    setErrors([])
 
     const validation = validateEventData({
       action: formData.action,
@@ -206,7 +204,10 @@ export function LogEventPage() {
     })
 
     if (!validation.isValid) {
-      setErrors(validation.errors)
+      toast.error("Validation failed", {
+        description: validation.errors.join(", "),
+        style: { color: "var(--error-text)" }
+      })
       return
     }
 
@@ -237,25 +238,21 @@ export function LogEventPage() {
       }
 
       await createOwnershipEvent(eventData)
+      
+      // Show success toast with action-specific message
+      const actionLabel = formData.action ? ACTION_LABELS[formData.action] : "Event"
+      toast.success(`${actionLabel} recorded successfully`, {style: {color: "var(--success-text)"}})
+      
       navigate("/events")
     } catch (error) {
       console.error("Failed to create ownership event:", error)
 
-      let errorMessage = "Failed to create event. Please try again."
+      const errorMessage = getDatabaseErrorMessage(error, "log events")
 
-      if (error instanceof Error) {
-        if (error.message.includes("invalid input syntax for type uuid")) {
-          errorMessage = "One or more selected items have invalid IDs. Please refresh and try again."
-        } else if (error.message.includes("foreign key constraint")) {
-          errorMessage = "Selected item or player no longer exists. Please refresh and try again."
-        } else if (error.message.includes("duplicate key")) {
-          errorMessage = "This event already exists. Please check your data and try again."
-        } else {
-          errorMessage = `Error: ${error.message}`
-        }
-      }
-
-      setErrors([errorMessage])
+      toast.error("Failed to create event", {
+        description: errorMessage,
+        style: { color: "var(--error-text)" }
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -611,35 +608,6 @@ export function LogEventPage() {
                   </div>
                 </section>
 
-                {errors.length > 0 && (
-                  <div className="space-y-3 rounded-xl border border-destructive/40 bg-destructive/10 p-4">
-                    <div className="flex items-start gap-2">
-                      <X className="mt-0.5 h-4 w-4 text-destructive" />
-                      <div className="space-y-2">
-                        <p className="text-sm font-semibold text-destructive">Please fix the following issues:</p>
-                        <ul className="space-y-1">
-                          {errors.map((error, index) => (
-                            <li key={index} className="text-sm text-destructive">
-                              • {error}
-                            </li>
-                          ))}
-                        </ul>
-                        {errors.some((error) => error.includes("refresh") || error.includes("stale")) && (
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={resetForm}
-                            className="mt-2 h-8"
-                          >
-                            <RefreshCw className="mr-2 h-3 w-3" />
-                            Refresh data
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <div className="flex flex-col gap-3 border-t border-border/60 pt-6 sm:flex-row sm:justify-end">
                   <Button

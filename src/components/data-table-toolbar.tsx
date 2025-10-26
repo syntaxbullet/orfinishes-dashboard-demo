@@ -5,6 +5,7 @@
 
 import * as React from "react"
 import type { Column } from "@tanstack/react-table"
+import { RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -160,6 +161,7 @@ export function DataTableRefresh({
     return null
   }
 
+
   return (
     <Button
       type="button"
@@ -171,11 +173,14 @@ export function DataTableRefresh({
     >
       {isRefreshing ? (
         <>
-          <div className="mr-2 h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" />
+          <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
           {refreshingText}
         </>
       ) : (
-        refreshText
+        <>
+          <RefreshCw className="mr-2 h-4 w-4" />
+          {refreshText}
+        </>
       )}
     </Button>
   )

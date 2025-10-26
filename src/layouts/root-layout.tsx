@@ -11,6 +11,7 @@ import {
   SidebarProvider,
   SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { Toaster } from "@/components/ui/sonner";
 import { allNavigationItems } from "@/config/navigation";
 
 export function RootLayout() {
@@ -74,6 +75,7 @@ export function RootLayout() {
           </div>
         </SidebarInset>
       </SidebarProvider>
+      <Toaster />
     </ProtectedRoute>
   );
 }

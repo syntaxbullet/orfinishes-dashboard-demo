@@ -1,9 +1,11 @@
 import * as React from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { Loader2, Trash2 } from "lucide-react"
+import { toast } from "sonner"
 
 import { DataTable } from "@/components/ui/data-table"
 import { PlayerProfileSheet } from "@/components/player-profile-sheet"
+import { ItemDetailSheet } from "@/components/item-detail-sheet"
 import { PlayerAvatar } from "@/components/player-avatar"
 import { StatCard } from "@/components/stat-card"
 import { ErrorDisplay } from "@/components/error-display"
@@ -11,6 +13,7 @@ import { DataTableToolbar, DataTableSearch, DataTableFilter, DataTableRefresh } 
 import { DeleteConfirmationDialog } from "@/components/delete-confirmation-dialog"
 import { Button } from "@/components/ui/button"
 import { usePlayerProfile } from "@/hooks/use-player-profile"
+import { getDatabaseErrorMessage } from "@/lib/error-utils"
 import { numberFormatter, dateTimeFormatter } from "@/lib/formatters"
 import { createPlayerDisplayInfo, createPlayerLookupMap, resolvePlayerByIdentifier, createFallbackPlayerDisplayInfo, type PlayerDisplayInfo } from "@/lib/player-utils"
 import { cn } from "@/lib/utils"
@@ -23,6 +26,7 @@ import {
   type CosmeticRecord,
   type OwnershipAction,
   type PlayerRecord,
+  type ItemRecord,
 } from "@/utils/supabase"
 
 
@@ -153,6 +157,7 @@ function ParticipantPreview({
 function createOwnershipEventColumns(
   onParticipantClick: (profile: PlayerDisplayInfo) => void,
   onDeleteEvent: (eventId: string, eventName: string) => void,
+  onItemClick: (itemId: string) => void,
 ): ColumnDef<OwnershipEventRow>[] {
   return [
     {
@@ -174,14 +179,25 @@ function createOwnershipEventColumns(
     {
       accessorKey: "itemId",
       header: "Item",
-      cell: ({ row }) => (
-        <div className="space-y-1">
-          <p className="text-sm font-medium text-foreground">{row.original.itemName}</p>
-          <p className="font-mono text-xs text-muted-foreground">
-            {row.original.itemDetail}
-          </p>
-        </div>
-      ),
+      cell: ({ row }) => {
+        const handleClick = () => {
+          onItemClick(row.original.itemId)
+        }
+
+        return (
+          <button
+            type="button"
+            onClick={handleClick}
+            className="flex w-full flex-col items-start rounded-md border border-transparent p-1.5 text-left transition hover:border-border hover:bg-muted/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60"
+            aria-label={`Open details for item ${row.original.itemName}`}
+          >
+            <p className="text-sm font-medium text-foreground">{row.original.itemName}</p>
+            <p className="font-mono text-xs text-muted-foreground">
+              {row.original.itemDetail}
+            </p>
+          </button>
+        )
+      },
       filterFn: (row, _columnId, value) => {
         const search = String(value ?? "").trim().toLowerCase()
         if (!search) {
@@ -298,6 +314,9 @@ export function EventsPage() {
   const [actionFilter, setActionFilter] = React.useState<
     OwnershipAction | "all"
   >("all")
+  const [selectedItem, setSelectedItem] = React.useState<ItemRecord | null>(null)
+  const [isItemSheetOpen, setIsItemSheetOpen] = React.useState(false)
+  const [isRefreshingLocal, setIsRefreshingLocal] = React.useState(false)
   
   // Delete confirmation dialog state
   const [deleteDialog, setDeleteDialog] = React.useState<{
@@ -326,7 +345,7 @@ export function EventsPage() {
 
   // Get loading states
   const isLoading = playersStore.isLoading || cosmeticsStore.isLoading || itemsStore.isLoading || eventsStore.isLoading
-  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || itemsStore.isRefreshing || eventsStore.isRefreshing
+  const isRefreshing = playersStore.isRefreshing || cosmeticsStore.isRefreshing || itemsStore.isRefreshing || eventsStore.isRefreshing || isRefreshingLocal
   const error = playersStore.error || cosmeticsStore.error || itemsStore.error || eventsStore.error
   
   // Use the player profile hook for modal management
@@ -347,12 +366,23 @@ export function EventsPage() {
 
   // Refresh function
   const handleRefresh = React.useCallback(async () => {
-    await Promise.all([
-      playersStore.refreshPlayers(),
-      eventsStore.refreshEvents(),
-      itemsStore.refreshItems(),
-      cosmeticsStore.refreshCosmetics(),
-    ])
+    setIsRefreshingLocal(true)
+    
+    try {
+      await Promise.all([
+        playersStore.refreshPlayers(),
+        eventsStore.refreshEvents(),
+        itemsStore.refreshItems(),
+        cosmeticsStore.refreshCosmetics(),
+      ])
+      
+      // Add a small delay to make the refresh animation more visible
+      await new Promise(resolve => setTimeout(resolve, 1000))
+    } catch (error) {
+      console.error('Events refresh failed:', error)
+    } finally {
+      setIsRefreshingLocal(false)
+    }
   }, [playersStore, eventsStore, itemsStore, cosmeticsStore])
 
   // Create player lookup map using the new utility
@@ -366,6 +396,27 @@ export function EventsPage() {
       }
     },
     [playerLookup, playerProfile],
+  )
+
+  const handleItemClick = React.useCallback(
+    (itemId: string) => {
+      const item = items.find(i => i.id === itemId)
+      if (item) {
+        setSelectedItem(item)
+        setIsItemSheetOpen(true)
+      }
+    },
+    [items],
+  )
+
+  const handleItemSheetChange = React.useCallback(
+    (open: boolean) => {
+      setIsItemSheetOpen(open)
+      if (!open) {
+        setSelectedItem(null)
+      }
+    },
+    [],
   )
 
   const handleDeleteEvent = React.useCallback(
@@ -393,12 +444,18 @@ export function EventsPage() {
         eventName: "",
         isDeleting: false,
       })
-      // Refresh the data
+      
+      // Show success toast
+      toast.success("Ownership event deleted successfully", {style: {color: "var(--success-text)"}})
       void handleRefresh()
     } catch (error) {
-      console.error("Failed to delete ownership event:", error)
-      setDeleteDialog(prev => ({ ...prev, isDeleting: false }))
-      // You might want to show a toast notification here
+      const errorMessage = getDatabaseErrorMessage(error, "delete this event")
+      
+      toast.error("Failed to delete ownership event", {
+        style: {color: "var(--error-text)"},
+        description: errorMessage
+      })
+      setDeleteDialog(prev => ({ ...prev, isDeleting: false, open: false }))
     }
   }, [deleteDialog.eventId, handleRefresh])
 
@@ -412,8 +469,8 @@ export function EventsPage() {
   }, [])
 
   const columns = React.useMemo(
-    () => createOwnershipEventColumns(handleParticipantClick, handleDeleteEvent),
-    [handleParticipantClick, handleDeleteEvent],
+    () => createOwnershipEventColumns(handleParticipantClick, handleDeleteEvent, handleItemClick),
+    [handleParticipantClick, handleDeleteEvent, handleItemClick],
   )
 
   const cosmeticLookup = React.useMemo(() => {
@@ -514,8 +571,6 @@ export function EventsPage() {
     return tableData.filter((event) => event.action === actionFilter)
   }, [actionFilter, tableData])
 
-  const isBusy = isLoading || isRefreshing
-
   const statCards = React.useMemo(() => {
     if (!tableData.length) {
       return [
@@ -615,8 +670,7 @@ export function EventsPage() {
           Ownership Events
         </h1>
         <p className="text-xs sm:text-sm text-muted-foreground">
-          Review the event ledger for grants, transfers, unboxes, and revokes
-          sourced from `public.ownership_events`.
+          Review the history of ownership changes for all items.
         </p>
       </header>
 
@@ -627,7 +681,7 @@ export function EventsPage() {
             label={card.label}
             value={card.value}
             detail={card.detail}
-            isLoading={isBusy}
+            isLoading={isLoading || isRefreshing}
           />
         ))}
       </div>
@@ -647,10 +701,10 @@ export function EventsPage() {
               title="Failed to load ownership events."
               onRetry={handleRefresh}
             />
-          ) : isBusy ? (
+          ) : isLoading || isRefreshing ? (
             <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin" />
-              {isRefreshing ? "Refreshing ownership events..." : "Loading ownership events..."}
+              {isRefreshing ? "Refreshing events..." : "Loading ownership events..."}
             </div>
           ) : (
             <DataTable
@@ -710,6 +764,12 @@ export function EventsPage() {
         player={playerProfile.selectedPlayer}
         open={playerProfile.isProfileOpen}
         onOpenChange={playerProfile.handleOpenChange}
+      />
+      
+      <ItemDetailSheet
+        item={selectedItem}
+        open={isItemSheetOpen}
+        onOpenChange={handleItemSheetChange}
       />
       
       <DeleteConfirmationDialog
