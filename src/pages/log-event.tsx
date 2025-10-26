@@ -314,7 +314,7 @@ export function LogEventPage() {
             variant="outline"
             size="sm"
             onClick={() => setIsMobileSummaryOpen((previous) => !previous)}
-            className="flex w-full items-center justify-between rounded-xl border-border/70 bg-background px-4 py-3 text-left"
+            className="flex w-full items-center justify-between rounded-xl border-border/70 bg-background p-6 text-left"
           >
             <span className="flex flex-col">
               <span className="text-sm font-semibold text-foreground">Event summary</span>

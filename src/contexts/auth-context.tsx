@@ -40,7 +40,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithDiscord = async () => {
     try {
       // Use production domain if available, otherwise fall back to current origin
-      const redirectUrl = process.env.PRODUCTION_DOMAIN || window.location.origin;
+      const redirectUrl =
+  (typeof process !== "undefined" && process.env?.PRODUCTION_DOMAIN) ||
+  window.location.origin;
+
       
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
