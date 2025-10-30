@@ -16,7 +16,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
-import { fetchFinishTypes } from "@/utils/supabase"
+
+// Hardcoded list of finish types
+const FINISH_TYPES: string[] = [
+  "Bubble",
+  "Chrome",
+  "Floral",
+  "Galaxy",
+  "Glitch",
+  "Gold",
+  "Iridescent",
+  "Matrix",
+  "Molten",
+  "Rainbow",
+  "Void"
+]
 
 interface FinishTypeComboboxProps {
   value?: string
@@ -32,21 +46,7 @@ export function FinishTypeCombobox({
   disabled = false,
 }: FinishTypeComboboxProps) {
   const [open, setOpen] = React.useState(false)
-  const [finishTypes, setFinishTypes] = React.useState<string[]>([])
-  const [loading, setLoading] = React.useState(false)
-
-  // Load finish types when component mounts or when opened
-  React.useEffect(() => {
-    if (open && finishTypes.length === 0) {
-      setLoading(true)
-      fetchFinishTypes()
-        .then(setFinishTypes)
-        .catch((error) => {
-          console.error("Failed to load finish types:", error)
-        })
-        .finally(() => setLoading(false))
-    }
-  }, [open, finishTypes.length])
+  const finishTypes = FINISH_TYPES
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -70,33 +70,27 @@ export function FinishTypeCombobox({
         <Command className="max-h-80 overflow-hidden">
           <CommandInput placeholder="Search finish types..." />
           <CommandList className="max-h-72 overflow-y-auto">
-            {loading ? (
-              <CommandEmpty>Loading finish types...</CommandEmpty>
-            ) : (
-              <>
-                <CommandEmpty>No finish types found.</CommandEmpty>
-                <CommandGroup>
-                  {finishTypes.map((finishType) => (
-                    <CommandItem
-                      key={finishType}
-                      value={finishType}
-                      onSelect={() => {
-                        onValueChange(finishType)
-                        setOpen(false)
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          value === finishType ? "opacity-100" : "opacity-0"
-                        )}
-                      />
-                      <span>{finishType}</span>
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </>
-            )}
+            <CommandEmpty>No finish types found.</CommandEmpty>
+            <CommandGroup>
+              {finishTypes.map((finishType) => (
+                <CommandItem
+                  key={finishType}
+                  value={finishType}
+                  onSelect={() => {
+                    onValueChange(finishType)
+                    setOpen(false)
+                  }}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      value === finishType ? "opacity-100" : "opacity-0"
+                    )}
+                  />
+                  <span>{finishType}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
           </CommandList>
         </Command>
       </PopoverContent>
